@@ -89,11 +89,12 @@ contract StakingContract {
 
     mapping(uint256 => Battle) public battles;
     mapping(address => Player) public players;
-    mapping(address => bool) public alreadyBatteled;
     mapping(address => uint256) public genLastTransaction;
     mapping(address => uint256) public areenaLastTransaction;
     mapping(uint256 => referenceInformation) public referalPerson;
     mapping(uint256 => mapping(address => uint256)) public stakeCount;
+    mapping(address => mapping(address => bool)) public alreadyBatteled;
+
 
     address private treasuryWallet = 0x1D375435c8EfA3e489ef002d2d0B1E7Eb3CC62Fe;
     address private areenaWallet = 0x1D375435c8EfA3e489ef002d2d0B1E7Eb3CC62Fe;
@@ -143,7 +144,6 @@ contract StakingContract {
         stakeAmount = stakeAmount.mul(1e18);
 
         require(stakeAmount >= minimumStake, "You must stake atleast 25 Gen tokens to enter into the battle.");
-        require(!alreadyBatteled[msg.sender], "You can not create or join new battles with same wallet.");
         require((genToken.balanceOf(msg.sender) + players[msg.sender].genAmountPlusBonus) >= stakeAmount,"You does not have sufficent amount of gen Token.");
         require(_riskPercentage == riskOptions[0] || _riskPercentage == riskOptions[1] || _riskPercentage == riskOptions[2], "Please chose the valid risk percentage.");
         require(msg.sender != address(0), "Player address canot be zero.");
@@ -173,7 +173,6 @@ contract StakingContract {
         battle.riskPercentage = _riskPercentage;
 
         battle.creatorStartingtime = block.timestamp;
-        alreadyBatteled[msg.sender] = true;
 
         emit createBattle(msg.sender,stakeAmount,battleId);
         
@@ -184,15 +183,18 @@ contract StakingContract {
 
         Battle storage battle = battles[_battleId];
         Player storage player = players[msg.sender];
+        battle.joiner = msg.sender;
 
         uint256 stakeAmount = _amount.mul(1e18);
         
         require(!battle.joined && !battle.leaved, "You can not join this battle. This battle may be already joined or completed."); 
-        require(!alreadyBatteled[msg.sender], "You can not create or join new battles with same wallet.");     
+        require(!alreadyBatteled[battle.creator][battle.joiner], "You can not create or join new battles with same person.");    
+        require(!alreadyBatteled[battle.joiner][battle.creator], "You can not create or join new battles with same person.");  
         require(stakeAmount == battle.stakeAmount,"Enter the exact amount of tokens to be a part of this battle.");
         require((genToken.balanceOf(msg.sender) + players[msg.sender].genAmountPlusBonus) >= stakeAmount,"You does not have sufficent amount of gen Token.");
         require(msg.sender != address(0), "Player address canot be zero.");
         require(owner != address(0), "Owner address canot be zero.");
+        
         
 
         uint256 creatorDeductedAmount = calculateCreatorPercentage(stakeAmount);
@@ -201,7 +203,7 @@ contract StakingContract {
         uint256 joinerDeductedAmount = calculateJoinerPercentage(stakeAmount);
         uint256 joinerAfterDeductedAmount = stakeAmount - joinerDeductedAmount;
 
-        battle.joiner = msg.sender;
+       
 
         players[battle.creator].battleCount++;
         if(battle.creator != battle.joiner){
@@ -230,7 +232,6 @@ contract StakingContract {
             uint256 joinerReferalAmount = calculateReferalPercentage(stakeAmount);
             referalPerson[_battleId].joinerReferalAmount = joinerReferalAmount;
             
-            console.log("joinerReferalAmount: ", joinerReferalAmount);
             
             genToken.transfer(joinerReferalPerson,joinerReferalAmount);
 
@@ -274,7 +275,10 @@ contract StakingContract {
             player.activeBattles++;
         }
 
-        alreadyBatteled[msg.sender] = true;
+        alreadyBatteled[battle.creator][battle.joiner] = true;
+        alreadyBatteled[battle.joiner][battle.creator] = false;
+
+        
         player.totalAmountStaked += joinerAfterDeductedAmount;
         players[battle.creator].totalAmountStaked +=  creatorAfterDeductedAmount;
         players[battle.creator].battleRecord[stakeCount[battleId][battle.creator]].amount = creatorAfterDeductedAmount;
