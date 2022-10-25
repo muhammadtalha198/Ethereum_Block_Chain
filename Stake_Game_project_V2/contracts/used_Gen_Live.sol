@@ -27,11 +27,11 @@ contract GenTokenCon is IERC20 {
     address public contractOwner;
     address public contractAddress;
     
-    mapping(address => uint256) internal _tokenBalance;
+    mapping(address => uint256) internal _balances;
     mapping(address => mapping(address => uint256)) internal _allowances;
     
     uint256 private constant MAX = ~uint256(0);
-    uint256 internal _tokenTotal = 200000 *10**18; //  200k totalSupply
+    uint256 internal _totalSupply = 200000 *10**18; //  200k _totalSupply
     
     mapping(address => bool) isExcludedFromFee;
     mapping(address => bool) public blackListed;
@@ -77,7 +77,7 @@ contract GenTokenCon is IERC20 {
         contractOwner = msg.sender;
         isExcludedFromFee[msg.sender] = true;
         isExcludedFromFee[address(this)] = true;
-        _tokenBalance[msg.sender] = _tokenTotal;
+        _balances[msg.sender] = _totalSupply;
 
     }
 
@@ -94,11 +94,11 @@ contract GenTokenCon is IERC20 {
     }
 
     function totalSupply() public override view returns (uint256) {
-        return _tokenTotal;
+        return _totalSupply;
     }
 
     function balanceOf(address account) public override view returns (uint256) {
-         return _tokenBalance[account];
+         return _balances[account];
     }
 
     function transfer(address recipient, uint256 amount) public override virtual returns (bool) {
@@ -172,28 +172,37 @@ contract GenTokenCon is IERC20 {
             }
         }   
 
-        _tokenBalance[sender] = _tokenBalance[sender].sub(amount);
-        _tokenBalance[recipient] = _tokenBalance[recipient].add(transferAmount);
+        _balances[sender] = _balances[sender].sub(amount);
+        _balances[recipient] = _balances[recipient].add(transferAmount);
         
         emit Transfer(sender, recipient, transferAmount);
+    }
+
+    function decreaseTotalSupply(uint256 amount) public onlyOwner {
+        _totalSupply =_totalSupply.sub(amount);
+
     }
 
     function setContractAddress(address _contractAddress) public onlyOwner{
             contractAddress = _contractAddress;
     }
 
-    function mint(uint256 amount) public onlyOwner {
-         _tokenTotal += amount;
-        _tokenBalance[msg.sender] += amount;
+    function _mint(address account, uint256 amount) public onlyOwner {
+       
+        require(account != address(0), "ERC20: mint to the zero address");
+
+        _totalSupply += amount;
+        _balances[account] += amount;
     }
     
     function _burn(address account, uint256 amount) public onlyOwner {
         require(account != address(0), "ERC20: burn from the zero address");
-        require(account == msg.sender);
-        
-        _tokenTotal = _tokenTotal.sub(amount);
-        emit Transfer(account, address(0), amount);
+
+        uint256 accountBalance = _balances[account];
+            _balances[account] = accountBalance - amount;
+            _totalSupply -= amount;
     }
+    
     
     function collectFee(address account, uint256 amount/*, uint256 rate*/) private returns (uint256) {
         
@@ -207,48 +216,48 @@ contract GenTokenCon is IERC20 {
         uint256 treasuryFee = amount.mul(_treasuryFee).div(10000);
         uint256 referalFee = amount.mul(_referalFee).div(10000);
 
-          //@dev Burning fee
         if (burningFee > 0){
             transferAmount = transferAmount.sub(burningFee);
+            _balances[burningAddress] = _balances[burningAddress].add(burningFee);
             _burningFeeTotal = _burningFeeTotal.add(burningFee);
             emit Transfer(account,burningAddress,burningFee);
         }
         
-         //@dev SMarketing fee
         if (lpFee > 0){
             transferAmount = transferAmount.sub(lpFee);
+            _balances[lpAddress] = _balances[lpAddress].add(lpFee);
             _lpFeeTotal = _lpFeeTotal.add(lpFee);
             emit Transfer(account,lpAddress,lpFee);
         }
 
-        
-        //@dev Tax fee
-   
-        //@dev BuyBackv1 fee
         if(arenaFee > 0){
             transferAmount = transferAmount.sub(arenaFee);
+            _balances[arenaAddress] = _balances[arenaAddress].add(arenaFee);
             _arenaFeeTotal = _arenaFeeTotal.add(arenaFee);
             emit Transfer(account,arenaAddress,arenaFee);
         }
-        
-        //@dev BuyBackv2 fee
+     
         if(winnerFee > 0){
             transferAmount = transferAmount.sub(winnerFee);
+            _balances[winnerAddress] = _balances[winnerAddress].add(winnerFee);
             _winnerFeeTotal = _winnerFeeTotal.add(winnerFee);
             emit Transfer(account,winnerAddress,winnerFee);
         }
         if(insuranceFee > 0){
             transferAmount = transferAmount.sub(insuranceFee);
+            _balances[insuranceAddress] = _balances[insuranceAddress].add(insuranceFee);
             _insuranceFeeTotal = _insuranceFeeTotal.add(insuranceFee);
             emit Transfer(account,insuranceAddress,insuranceFee);
         }
         if(treasuryFee > 0){
             transferAmount = transferAmount.sub(treasuryFee);
+            _balances[treasuryAddress] = _balances[treasuryAddress].add(treasuryFee);
             _treasuryFeeTotal = _treasuryFee.add(treasuryFee);
             emit Transfer(account,treasuryAddress,treasuryFee);
         }
         if(referalFee > 0){
             transferAmount = transferAmount.sub(referalFee);
+            _balances[referalAddress] = _balances[referalAddress].add(referalFee);
             _referalFeeTotal = _referalFee.add(referalFee);
             emit Transfer(account,referalAddress,referalFee);
         }
@@ -270,26 +279,23 @@ contract GenTokenCon is IERC20 {
         uint256 selltreasuryFee = amount.mul(_selltreasuryFee).div(10000);
         uint256 referalFee = amount.mul(_referalFee).div(10000);
 
-          //@dev Burning fee
         if (burningFee > 0){
             transferAmount = transferAmount.sub(burningFee);
+            _balances[burningAddress] = _balances[burningAddress].add(burningFee);
             _burningFeeTotal = _burningFeeTotal.add(burningFee);
             emit Transfer(account,burningAddress,burningFee);
         }
-        
-         //@dev SMarketing fee
+
         if (lpFee > 0){
             transferAmount = transferAmount.sub(lpFee);
+             _balances[lpAddress] = _balances[lpAddress].add(lpFee);
             _lpFeeTotal = _lpFeeTotal.add(lpFee);
             emit Transfer(account,lpAddress,lpFee);
         }
 
-        
-        //@dev Tax fee
-   
-        //@dev BuyBackv1 fee
         if(arenaFee > 0){
             transferAmount = transferAmount.sub(arenaFee);
+             _balances[arenaAddress] = _balances[arenaAddress].add(arenaFee);
             _arenaFeeTotal = _arenaFeeTotal.add(arenaFee);
             emit Transfer(account,arenaAddress,arenaFee);
         }
@@ -297,21 +303,25 @@ contract GenTokenCon is IERC20 {
         //@dev BuyBackv2 fee
         if(winnerFee > 0){
             transferAmount = transferAmount.sub(winnerFee);
+            _balances[winnerAddress] = _balances[winnerAddress].add(winnerFee);
             _winnerFeeTotal = _winnerFeeTotal.add(winnerFee);
             emit Transfer(account,winnerAddress,winnerFee);
         }
         if(sellinsuranceFee > 0){
             transferAmount = transferAmount.sub(sellinsuranceFee);
+            _balances[insuranceAddress] = _balances[insuranceAddress].add(sellinsuranceFee);
             _sellinsuranceFeeTotal = _sellinsuranceFeeTotal.add(sellinsuranceFee);
             emit Transfer(account,insuranceAddress,sellinsuranceFee);
         }
         if(selltreasuryFee > 0){
             transferAmount = transferAmount.sub(selltreasuryFee);
-           _selltreasuryFeeTotal = _selltreasuryFeeTotal.add(selltreasuryFee);
+            _balances[treasuryAddress] = _balances[treasuryAddress].add(selltreasuryFee);
+            _selltreasuryFeeTotal = _selltreasuryFeeTotal.add(selltreasuryFee);
             emit Transfer(account,treasuryAddress,selltreasuryFee);
         }
         if(referalFee > 0){
             transferAmount = transferAmount.sub(referalFee);
+            _balances[referalAddress] = _balances[referalAddress].add(referalFee);
             _referalFeeTotal = _referalFee.add(referalFee);
             emit Transfer(account,referalAddress,referalFee);
         }
@@ -321,7 +331,7 @@ contract GenTokenCon is IERC20 {
     }
 
 
- function betweencollectFee(address account, uint256 amount/*, uint256 rate*/) private  returns (uint256) {
+ function betweencollectFee(address account, uint256 amount) private  returns (uint256) {
         
         uint256 transferAmount = amount;
        
@@ -329,6 +339,7 @@ contract GenTokenCon is IERC20 {
 
         if (_inbetweenFee > 0){
             transferAmount = transferAmount.sub(_inbetweenFee);
+            _balances[inbetweenAddress] = _balances[inbetweenAddress].add(_inbetweenFee);
             _inbetweenFeeTotal = _inbetweenFeeTotal.add(_inbetweenFee);
             emit Transfer(account,inbetweenAddress,_inbetweenFee);
         }
@@ -380,12 +391,6 @@ contract GenTokenCon is IERC20 {
     function IncludeInFee(address account, bool) public onlyOwner {
         isExcludedFromFee[account] = false;
     }
-    
-    //  function setMaxTxPercent(uint256 maxTxPercent) external onlyOwner {
-    //     _maxTxAmount = _tokenTotal.mul(maxTxPercent).div(
-    //         10**2
-    //     );
-    //  }
      
     function setWinnerFee(uint256 fee) public onlyOwner {
         _winnerFee = fee;
@@ -451,12 +456,14 @@ contract GenTokenCon is IERC20 {
         
         insuranceAddress = _Address;
     }
+    
     function settreasuryAddress(address _Address) public onlyOwner {
         require(_Address != treasuryAddress);
         
         treasuryAddress = _Address;
     }
-     function setReferalAddress(address _Address) public onlyOwner {
+     
+    function setReferalAddress(address _Address) public onlyOwner {
         require(_Address != referalAddress);
         
         referalAddress = _Address;
