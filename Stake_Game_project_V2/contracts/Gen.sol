@@ -1,0 +1,522 @@
+
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.17;
+
+interface IERC20 {
+   
+    function totalSupply() external view returns (uint256);
+    function balanceOf(address account) external view returns (uint256);
+    function transfer(address recipient, uint256 amount)external returns (bool);
+    function allowance(address owner, address spender)external view returns (uint256);
+    function approve(address spender, uint256 amount) external returns (bool);
+    function transferFrom(address sender,address recipient,uint256 amount) external returns (bool);
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Approval(address indexed owner,address indexed spender,uint256 value);
+}
+
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/math/SafeMath.sol";
+
+contract GenTokenCon is IERC20 {
+    
+    using SafeMath for uint256;
+
+    string private _name = "GenToken";
+    string private _symbol = "FGEN";
+    uint8 private _decimals = 18;
+
+    address public contractOwner;
+    address public contractAddress;
+    
+    mapping(address => uint256) internal _reflectionBalance;
+    mapping(address => uint256) internal _tokenBalance;
+    mapping(address => mapping(address => uint256)) internal _allowances;
+    
+    uint256 private constant MAX = ~uint256(0);
+    uint256 internal _tokenTotal = 20000000000000000000000 *10**18; //  200k totalSupply
+    uint256 internal _reflectionTotal = (MAX - (MAX % _tokenTotal));
+    
+    mapping(address => bool) isExcludedFromFee;
+    mapping(address => bool) internal _isExcluded;
+    mapping(address => bool) public blackListed;
+    mapping(address => bool) public whiteListed;
+    address[] internal _excluded;
+    
+    uint256 public _arenaFee = 200; // 200 = 2.00%
+    uint256 public _winnerFee = 100; // 100 = 1.00%
+    uint256 public _burningFee = 200; // 200 = 2.0%
+    uint256 public _lpFee = 400; // 400 = 4%
+    uint256 public _insuranceFee = 400; // 400 = 4%
+    uint256 public _treasuryFee = 200; // 200 = 2%
+    uint256 public _referalFee = 100; // 100 = 1%
+    uint256 public _selltreasuryFee = 300; // 300 = 3%
+    uint256 public _sellinsuranceFee = 500; // 500 = 5%
+    uint256 public _inbetweenFee_ = 4000; // 4000 = 40%
+
+    
+    uint256 public _arenaFeeTotal;
+    uint256 public _winnerFeeTotal;
+    uint256 public _burningFeeTotal;
+    uint256 public _lpFeeTotal;
+    uint256 public _insuranceFeeTotal;
+    uint256 public _sellinsuranceFeeTotal;
+    uint256 public _selltreasuryFeeTotal;
+    uint256 public _treasuryFeeTotal;
+    uint256 public _referalFeeTotal;
+    uint256 public _inbetweenFeeTotal;
+
+    address public arenaAddress  = 0x8523A42488Fc8f7e18aeF7249D337A4F14837650;      // arenaAddress
+    address public winnerAddress  = 0x6783db6859A1E971d07035fC2dA916b94c314E51;      // winnerAddress
+    address public burningAddress;  // 0x000000000000000000000000000000000000dead  Burning Address add after deployment
+    address public lpAddress = 0x3e4993839f7B99C0Ac66048c3dFD58e0af548FD4;          // lpAddress
+    address public insuranceAddress = 0xEBFe69037B45bDd21aDbb6DCD2E11e1f05C29d18;      // insuranceAddress
+    address public treasuryAddress = 0x9Fe316f151F1Cb2022bc376B1073751f1B1a2414;      // treasuryAddress
+    address public referalAddress = 0x2501E79052e090de1529F9bc2EE761A89F62d82e;      // referalAddress
+    address public inbetweenAddress = 0x2501E79052e090de1529F9bc2EE761A89F62d82e;      // inbetweenAddress
+
+
+    event RewardsDistributed(uint256 amount);
+    
+    
+
+    constructor() {
+
+        contractOwner = msg.sender;
+        isExcludedFromFee[msg.sender] = true;
+        isExcludedFromFee[address(this)] = true;
+        _reflectionBalance[msg.sender] = _reflectionTotal;
+        emit Transfer(address(0), msg.sender, _tokenTotal);
+    }
+
+    function name() public view returns (string memory) {
+        return _name;
+    }
+
+    function symbol() public view returns (string memory) {
+        return _symbol;
+    }
+
+    function decimals() public view returns (uint8) {
+        return _decimals;
+    }
+
+    function totalSupply() public override view returns (uint256) {
+        return _tokenTotal;
+    }
+
+    function balanceOf(address account) public override view returns (uint256) {
+        if (_isExcluded[account]) return _tokenBalance[account];
+        return tokenFromReflection(_reflectionBalance[account]);
+    }
+
+    function transfer(address recipient, uint256 amount) public override virtual returns (bool) {
+       _transfer(msg.sender,recipient,amount);
+        return true;
+    }
+
+    function allowance(address owner, address spender) public override view returns (uint256) {
+        return _allowances[owner][spender];
+    }
+
+    function approve(address spender, uint256 amount) public override returns (bool) {
+        _approve(msg.sender, spender, amount);
+        return true;
+    }
+
+    function transferFrom(address sender, address recipient, uint256 amount) public override virtual returns (bool) {
+        _transfer(sender,recipient,amount);
+               
+        _approve(sender,msg.sender,_allowances[sender][msg.sender].sub( amount,"ERC20: transfer amount exceeds allowance"));
+        return true;
+    }
+
+    function increaseAllowance(address spender, uint256 addedValue) public virtual returns (bool) {
+        _approve(msg.sender, spender, _allowances[msg.sender][spender].add(addedValue));
+        return true;
+    }
+
+    function decreaseAllowance(address spender, uint256 subtractedValue) public virtual returns (bool) {
+        _approve(msg.sender, spender, _allowances[msg.sender][spender].sub(subtractedValue, "ERC20: decreased allowance below zero"));
+        return true;
+    }
+
+    function isExcluded(address account) public view returns (bool) {
+        return _isExcluded[account];
+    }
+
+   
+
+    function tokenFromReflection(uint256 reflectionAmount) public view returns (uint256) {
+        require(reflectionAmount <= _reflectionTotal, "Amount must be less than total reflections");
+        uint256 currentRate = _getReflectionRate();
+        return reflectionAmount.div(currentRate);
+    }
+
+    function _approve(address owner, address spender, uint256 amount) private {
+        require(owner != address(0), "ERC20: approve from the zero address");
+        require(spender != address(0), "ERC20: approve to the zero address");
+
+        _allowances[owner][spender] = amount;
+        emit Approval(owner, spender, amount);
+    }
+
+
+    function _transfer(address sender, address recipient, uint256 amount) private {
+
+        require(!blackListed[msg.sender], "You are blacklisted so you can not Transfer Gen tokens!");
+        require(sender != address(0), "ERC20: transfer from the zero address");
+        require(recipient != address(0), "ERC20: transfer to the zero address");
+        
+        uint256 transferAmount = amount;
+        uint256 rate = _getReflectionRate();
+        
+        // if(sender != contractOwner && recipient != contractOwner)
+        //     require(amount <= _maxTxAmount, "Transfer amount exceeds the maxTxAmount.");
+
+        if(isExcludedFromFee[sender] && recipient == contractAddress){
+            transferAmount = collectFee(sender,amount,rate);     
+        }
+        else if(whiteListed[sender] || whiteListed[recipient]){
+            transferAmount = amount;     
+        }
+        else{
+
+            if(isExcludedFromFee[sender] && isExcludedFromFee[recipient]){
+                transferAmount = amount;
+            }
+            if(!isExcludedFromFee[sender] && !isExcludedFromFee[recipient]){
+                transferAmount = betweencollectFee(sender,amount,rate);
+            }
+            if(isExcludedFromFee[sender] && !isExcludedFromFee[recipient]){
+                transferAmount = collectFee(sender,amount,rate);
+            }
+            if(!isExcludedFromFee[sender] && isExcludedFromFee[recipient]){
+                transferAmount = SellcollectFee(sender,amount,rate);
+            }
+        }   
+
+        //@dev Transfer reflection
+        _reflectionBalance[sender] = _reflectionBalance[sender].sub(amount.mul(rate));
+        _reflectionBalance[recipient] = _reflectionBalance[recipient].add(transferAmount.mul(rate));
+        
+        //@dev If any account belongs to the excludedAccount transfer token
+        if (_isExcluded[sender]) {
+            _tokenBalance[sender] = _tokenBalance[sender].sub(amount);
+        }
+        if (_isExcluded[recipient]) {
+            _tokenBalance[recipient] = _tokenBalance[recipient].add(transferAmount);
+        }
+        
+        emit Transfer(sender, recipient, transferAmount);
+    }
+
+    function setContractAddress(address _contractAddress) public onlyOwner{
+            contractAddress = _contractAddress;
+    }
+
+    function mint(address to, uint256 amount) public onlyOwner {
+         _tokenTotal += amount;
+        _tokenBalance[to] += amount;
+    }
+    
+    function _burn(address account, uint256 amount) public onlyOwner {
+        require(account != address(0), "ERC20: burn from the zero address");
+        require(account == msg.sender);
+        
+        _reflectionBalance[account] = _reflectionBalance[account].sub(amount, "ERC20: burn amount exceeds balance");
+        _tokenTotal = _tokenTotal.sub(amount);
+        emit Transfer(account, address(0), amount);
+    }
+    
+    function collectFee(address account, uint256 amount, uint256 rate) private returns (uint256) {
+        
+        uint256 transferAmount = amount;
+        
+        uint256 arenaFee = amount.mul(_arenaFee).div(10000);
+        uint256 winnerFee = amount.mul(_winnerFee).div(10000);
+        uint256 burningFee = amount.mul(_burningFee).div(10000);
+        uint256 lpFee = amount.mul(_lpFee).div(10000);
+        uint256 insuranceFee = amount.mul(_insuranceFee).div(10000);
+        uint256 treasuryFee = amount.mul(_treasuryFee).div(10000);
+        uint256 referalFee = amount.mul(_referalFee).div(10000);
+
+          //@dev Burning fee
+        if (burningFee > 0){
+            transferAmount = transferAmount.sub(burningFee);
+            _reflectionBalance[burningAddress] = _reflectionBalance[burningAddress].add(burningFee.mul(rate));
+            _burningFeeTotal = _burningFeeTotal.add(burningFee);
+            emit Transfer(account,burningAddress,burningFee);
+        }
+        
+         //@dev SMarketing fee
+        if (lpFee > 0){
+            transferAmount = transferAmount.sub(lpFee);
+            _reflectionBalance[lpAddress] = _reflectionBalance[lpAddress].add(lpFee.mul(rate));
+            _lpFeeTotal = _lpFeeTotal.add(lpFee);
+            emit Transfer(account,lpAddress,lpFee);
+        }
+
+        
+        //@dev Tax fee
+   
+        //@dev BuyBackv1 fee
+        if(arenaFee > 0){
+            transferAmount = transferAmount.sub(arenaFee);
+            _reflectionBalance[arenaAddress] = _reflectionBalance[arenaAddress].add(arenaFee.mul(rate));
+            _arenaFeeTotal = _arenaFeeTotal.add(arenaFee);
+            emit Transfer(account,arenaAddress,arenaFee);
+        }
+        
+        //@dev BuyBackv2 fee
+        if(winnerFee > 0){
+            transferAmount = transferAmount.sub(winnerFee);
+            _reflectionBalance[winnerAddress] = _reflectionBalance[winnerAddress].add(winnerFee.mul(rate));
+            _winnerFeeTotal = _winnerFeeTotal.add(winnerFee);
+            emit Transfer(account,winnerAddress,winnerFee);
+        }
+        if(insuranceFee > 0){
+            transferAmount = transferAmount.sub(insuranceFee);
+            _reflectionBalance[insuranceAddress] = _reflectionBalance[insuranceAddress].add(insuranceFee.mul(rate));
+            _insuranceFeeTotal = _insuranceFeeTotal.add(insuranceFee);
+            emit Transfer(account,insuranceAddress,insuranceFee);
+        }
+        if(treasuryFee > 0){
+            transferAmount = transferAmount.sub(treasuryFee);
+            _reflectionBalance[treasuryAddress] = _reflectionBalance[treasuryAddress].add(treasuryFee.mul(rate));
+            _treasuryFeeTotal = _treasuryFee.add(treasuryFee);
+            emit Transfer(account,treasuryAddress,treasuryFee);
+        }
+        if(referalFee > 0){
+            transferAmount = transferAmount.sub(referalFee);
+            _reflectionBalance[referalAddress] = _reflectionBalance[referalAddress].add(referalFee.mul(rate));
+            _referalFeeTotal = _referalFee.add(referalFee);
+            emit Transfer(account,referalAddress,referalFee);
+        }
+        
+       
+        return transferAmount;
+    }
+
+
+    function SellcollectFee(address account, uint256 amount, uint256 rate) private  returns (uint256) {
+        
+        uint256 transferAmount = amount;
+        
+        uint256 arenaFee = amount.mul(_arenaFee).div(10000);
+        uint256 winnerFee = amount.mul(_winnerFee).div(10000);
+        uint256 burningFee = amount.mul(_burningFee).div(10000);
+        uint256 lpFee = amount.mul(_lpFee).div(10000);
+        uint256 sellinsuranceFee = amount.mul(_sellinsuranceFee).div(10000);
+        uint256 selltreasuryFee = amount.mul(_selltreasuryFee).div(10000);
+        uint256 referalFee = amount.mul(_referalFee).div(10000);
+
+          //@dev Burning fee
+        if (burningFee > 0){
+            transferAmount = transferAmount.sub(burningFee);
+            _reflectionBalance[burningAddress] = _reflectionBalance[burningAddress].add(burningFee.mul(rate));
+            _burningFeeTotal = _burningFeeTotal.add(burningFee);
+            emit Transfer(account,burningAddress,burningFee);
+        }
+        
+         //@dev SMarketing fee
+        if (lpFee > 0){
+            transferAmount = transferAmount.sub(lpFee);
+            _reflectionBalance[lpAddress] = _reflectionBalance[lpAddress].add(lpFee.mul(rate));
+            _lpFeeTotal = _lpFeeTotal.add(lpFee);
+            emit Transfer(account,lpAddress,lpFee);
+        }
+
+        
+        //@dev Tax fee
+   
+        //@dev BuyBackv1 fee
+        if(arenaFee > 0){
+            transferAmount = transferAmount.sub(arenaFee);
+            _reflectionBalance[arenaAddress] = _reflectionBalance[arenaAddress].add(arenaFee.mul(rate));
+            _arenaFeeTotal = _arenaFeeTotal.add(arenaFee);
+            emit Transfer(account,arenaAddress,arenaFee);
+        }
+        
+        //@dev BuyBackv2 fee
+        if(winnerFee > 0){
+            transferAmount = transferAmount.sub(winnerFee);
+            _reflectionBalance[winnerAddress] = _reflectionBalance[winnerAddress].add(winnerFee.mul(rate));
+            _winnerFeeTotal = _winnerFeeTotal.add(winnerFee);
+            emit Transfer(account,winnerAddress,winnerFee);
+        }
+        if(sellinsuranceFee > 0){
+            transferAmount = transferAmount.sub(sellinsuranceFee);
+            _reflectionBalance[insuranceAddress] = _reflectionBalance[insuranceAddress].add(sellinsuranceFee.mul(rate));
+            _sellinsuranceFeeTotal = _sellinsuranceFeeTotal.add(sellinsuranceFee);
+            emit Transfer(account,insuranceAddress,sellinsuranceFee);
+        }
+        if(selltreasuryFee > 0){
+            transferAmount = transferAmount.sub(selltreasuryFee);
+            _reflectionBalance[treasuryAddress] = _reflectionBalance[treasuryAddress].add(selltreasuryFee.mul(rate));
+           _selltreasuryFeeTotal = _selltreasuryFeeTotal.add(selltreasuryFee);
+            emit Transfer(account,treasuryAddress,selltreasuryFee);
+        }
+        if(referalFee > 0){
+            transferAmount = transferAmount.sub(referalFee);
+            _reflectionBalance[referalAddress] = _reflectionBalance[referalAddress].add(referalFee.mul(rate));
+            _referalFeeTotal = _referalFee.add(referalFee);
+            emit Transfer(account,referalAddress,referalFee);
+        }
+        
+       
+        return transferAmount;
+    }
+
+
+ function betweencollectFee(address account, uint256 amount, uint256 rate) private  returns (uint256) {
+        
+        uint256 transferAmount = amount;
+       
+        uint256 _inbetweenFee = amount.mul(_inbetweenFee_).div(10000);
+
+        if (_inbetweenFee > 0){
+            transferAmount = transferAmount.sub(_inbetweenFee);
+            _reflectionBalance[inbetweenAddress] = _reflectionBalance[inbetweenAddress].add(_inbetweenFee.mul(rate));
+            _inbetweenFeeTotal = _inbetweenFeeTotal.add(_inbetweenFee);
+            emit Transfer(account,inbetweenAddress,_inbetweenFee);
+        }
+       
+        return transferAmount;
+    }
+
+    function _getReflectionRate() private view  returns (uint256) {
+        uint256 reflectionSupply = _reflectionTotal;
+        uint256 tokenSupply = _tokenTotal;
+        for (uint256 i = 0; i < _excluded.length; i++) {
+            if (
+                _reflectionBalance[_excluded[i]] > reflectionSupply ||
+                _tokenBalance[_excluded[i]] > tokenSupply
+            ) return _reflectionTotal.div(_tokenTotal);
+            reflectionSupply = reflectionSupply.sub(
+                _reflectionBalance[_excluded[i]]
+            );
+            tokenSupply = tokenSupply.sub(_tokenBalance[_excluded[i]]);
+        }
+        if (reflectionSupply < _reflectionTotal.div(_tokenTotal))
+            return _reflectionTotal.div(_tokenTotal);
+        return reflectionSupply.div(tokenSupply);
+    }
+
+    function addInBlackList(address account, bool) public onlyOwner {
+        blackListed[account] = true;
+    }
+    
+    function removeFromBlackList(address account, bool) public onlyOwner {
+        blackListed[account] = false;
+    }
+
+     function addInWhiteList(address account, bool) public onlyOwner {
+        whiteListed[account] = true;
+    }
+    
+    function removeFromWhiteList(address account, bool) public onlyOwner {
+        whiteListed[account] = false;
+    }
+   
+    function ExcludedFromFee(address account, bool) public onlyOwner {
+        isExcludedFromFee[account] = true;
+    }
+    
+    function IncludeInFee(address account, bool) public onlyOwner {
+        isExcludedFromFee[account] = false;
+    }
+    
+    //  function setMaxTxPercent(uint256 maxTxPercent) external onlyOwner {
+    //     _maxTxAmount = _tokenTotal.mul(maxTxPercent).div(
+    //         10**2
+    //     );
+    //  }
+     
+    function setWinnerFee(uint256 fee) public onlyOwner {
+        _winnerFee = fee;
+    }
+    
+    function setarenaFee(uint256 fee) public onlyOwner {
+        _arenaFee = fee;
+    }
+    
+     function setBurningFee(uint256 fee) public onlyOwner {
+        _burningFee = fee;
+    }
+    
+     function setlpFee(uint256 fee) public onlyOwner {
+        _lpFee = fee;
+    }
+    function setinsuranceFee(uint256 fee) public onlyOwner {
+        _insuranceFee = fee;
+    }
+    function settreasuryFee(uint256 fee) public onlyOwner {
+        _treasuryFee = fee;
+    }
+    function setselltreasuryFee(uint256 fee) public onlyOwner {
+        _selltreasuryFee = fee;
+    }
+    function setsellinsuranceFee(uint256 fee) public onlyOwner {
+        _sellinsuranceFee = fee;
+    }
+     function inbetweenFee(uint256 fee) public onlyOwner {
+        _inbetweenFee_ = fee;
+    }
+    function setArenaAddress(address _Address) public onlyOwner {
+        require(_Address != arenaAddress);
+        
+        arenaAddress = _Address;
+    }
+    function setinbetweenAddress(address _Address) public onlyOwner {
+        require(_Address != inbetweenAddress);
+        
+        inbetweenAddress = _Address;
+    }
+
+    
+    function setWinnerAddress(address _Address) public onlyOwner {
+        require(_Address != winnerAddress);
+        
+        winnerAddress = _Address;
+    }
+    
+    function setBurningAddress(address _Address) public onlyOwner {
+        require(_Address != burningAddress);
+        
+        burningAddress = _Address;
+    }
+    
+     function setLPAddress(address _Address) public onlyOwner {
+        require(_Address != lpAddress);
+        
+        lpAddress = _Address;
+    }
+    function setInsuranceAddress(address _Address) public onlyOwner {
+        require(_Address != insuranceAddress);
+        
+        insuranceAddress = _Address;
+    }
+    function settreasuryAddress(address _Address) public onlyOwner {
+        require(_Address != treasuryAddress);
+        
+        treasuryAddress = _Address;
+    }
+     function setReferalAddress(address _Address) public onlyOwner {
+        require(_Address != referalAddress);
+        
+        referalAddress = _Address;
+    }
+
+    // function to allow admin to transfer ETH from this contract
+    function TransferETH(address payable recipient, uint256 amount) public onlyOwner {
+        recipient.transfer(amount);
+    }
+    
+    modifier onlyOwner {
+        require(msg.sender == contractOwner, "Only owner can call this function.");
+        _;
+    }
+    
+    
+    receive() external payable {}
+}
+
