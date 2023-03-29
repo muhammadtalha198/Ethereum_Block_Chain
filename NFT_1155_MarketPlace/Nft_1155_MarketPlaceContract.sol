@@ -13,8 +13,8 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 interface MintingContract{
 
-  function fGetRoyaltyReceiver(address _nftaddress , uint256 _tokenid) external view returns(address reciver);
-  function fgetRoyaltyFeeInPBP(address _address , uint256 _tokenId) external view returns (uint256 _royaltyfee);
+  function fGetRoyaltyReceiver(uint256 _tokenid) external view returns(address reciver);
+  function fgetRoyaltyFeeInPBP(uint256 _tokenId) external view returns (uint256 _royaltyfee);
 }
 
 contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradeable, UUPSUpgradeable ,  PausableUpgradeable {
@@ -187,7 +187,7 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
     // Buy Fixed Price---------------------------------------------------------------------------------------------------
 
 
-    function BuyFixedPriceItem(uint256 _fixedId) payable external { 
+    function BuyFixedPriceItem(uint256 _fixedId) payable external whenNotPaused { 
 
         require(_fixedId > 0,"inavlid auction id");
         require(msg.sender != fixedPrice[_fixedId].owner , "owner of this nft can not buy");    
@@ -201,11 +201,9 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         if(mintingContractAddress == fixedPrice[fixedPriceId].nftAddress){
 
             uint256 _royaltyPercentage = mintingContract.fgetRoyaltyFeeInPBP(
-                fixedPrice[fixedPriceId].nftAddress,
                 fixedPrice[_fixedId].tokenId
             );
             address _royaltyReciver = mintingContract.fGetRoyaltyReceiver(
-                fixedPrice[fixedPriceId].nftAddress,
                 fixedPrice[_fixedId].tokenId
             );
 
@@ -213,25 +211,17 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
             uint256 totalFee = serviceFee + royaltyFee;
             uint256 amountSendToSeller = fixedPrice[_fixedId].price.sub(totalFee);        
         
-
-            (bool success, ) = payable(MarketPlaceOwner).call{value: serviceFee}("");
-            require(success, "Transfer fee to MarketPlaceOwner failed");
-
-            (success, ) = payable(_royaltyReciver).call{value: royaltyFee}("");
-            require(success, "Transfer fee to royalty receiver failed");
-
-            (success, ) = payable(fixedPrice[_fixedId].owner).call{value: amountSendToSeller}("");
-            require(success, "Transfer  fee to seller failed");
+            transferFunds(MarketPlaceOwner ,serviceFee);
+            transferFunds(_royaltyReciver ,royaltyFee);
+            transferFunds(fixedPrice[_fixedId].owner , amountSendToSeller);
+        
 
         }else{
 
             uint256 amountSendToSeller = fixedPrice[_fixedId].price.sub(serviceFee);
 
-            (bool success, ) = payable(MarketPlaceOwner).call{value: serviceFee}("");
-            require(success, "Transfer fee to MarketPlaceOwner failed");
-
-            (success, ) = payable(fixedPrice[_fixedId].owner).call{value: amountSendToSeller}("");
-            require(success, "Transfer fee to seller failed");
+            transferFunds(MarketPlaceOwner ,serviceFee);
+            transferFunds(fixedPrice[_fixedId].owner , amountSendToSeller);
 
         }
        
@@ -244,12 +234,10 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
                 fixedPrice[_fixedId].noOfCopies,
                 '0x00'
             );
-
-
     }
 
 
-    function startBid( uint256 _auctionId) payable public {
+    function startBid( uint256 _auctionId) payable external whenNotPaused {
 
         require(_auctionId > 0,"inavlid auction id");
         require(msg.sender != auction[_auctionId].nftOwner,"Seller can not place the bid on his own NFT");
@@ -263,8 +251,7 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
         require(msg.value <=  currentBidAmount,"There is already higer or equal bid exist" );
 
-        (bool success, ) = payable(currentBidder).call{value: currentBidAmount}("");
-        require(success, "Transfer fee to current bidder failed");
+        transferFunds(currentBidder ,currentBidAmount);
 
         auction[_auctionId].currentBidder = msg.sender;
         auction[_auctionId].currentBidAmount = msg.value;
@@ -286,11 +273,9 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         if(mintingContractAddress == auction[_auctionId].nftAddress){
 
             address _royaltyReciver = mintingContract.fGetRoyaltyReceiver(
-                auction[_auctionId].nftAddress,
                 auction[_auctionId].tokenId
             );
             uint256 _royaltyPercentage = mintingContract.fgetRoyaltyFeeInPBP(
-                auction[_auctionId].nftAddress,
                 auction[_auctionId].tokenId
             );
 
@@ -298,24 +283,16 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
             uint256 totalFee = serviceFee + royaltyFee;
             uint256 amountSendToSeller = auction[_auctionId].initialPrice.sub(totalFee);        
         
-            (bool success, ) = payable(MarketPlaceOwner).call{value: serviceFee}("");
-            require(success, "Transfer fee to MarketPlaceOwner failed");
-
-            (success, ) = payable(_royaltyReciver).call{value: royaltyFee}("");
-            require(success, "Transfer fee to royalty receiver failed");
-
-            (success, ) = payable(auction[_auctionId].nftOwner).call{value: amountSendToSeller}("");
-            require(success, "Transfer fee to seller failed");
+            transferFunds(MarketPlaceOwner ,serviceFee);
+            transferFunds(_royaltyReciver ,royaltyFee);
+            transferFunds(auction[_auctionId].nftOwner , amountSendToSeller);
 
         }else{
 
             uint256 amountSendToSeller = auction[_auctionId].initialPrice.sub(serviceFee);
 
-            (bool success, ) = payable(MarketPlaceOwner).call{value: serviceFee}("");
-            require(success, "Transfer fee to MarketPlaceOwner failed");
-
-            (success, ) = payable(auction[_auctionId].nftOwner).call{value: amountSendToSeller}("");
-            require(success, "Transfer fee to seller failed");
+            transferFunds(MarketPlaceOwner ,serviceFee);
+            transferFunds(auction[_auctionId].nftOwner , amountSendToSeller);
         }
 
         auction[_auctionId].isSold = true;
@@ -335,8 +312,8 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
     // Claim NFT
 
-    function claimNFT(uint256 _auctionId) public  returns(bool) 
-    {
+    function claimNFT(uint256 _auctionId) external {
+
         require(_auctionId > 0,"inavlid auction id");
         require(msg.sender == auction[_auctionId].currentBidder, "Only Higest Bidder can claim the NFT");
         require(!auction[_auctionId].nftClaimed,"Higiest bidder already claimed the nft.");
@@ -353,11 +330,9 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         if(mintingContractAddress == auction[_auctionId].nftAddress){
 
             address _royaltyReciver = mintingContract.fGetRoyaltyReceiver(
-                auction[_auctionId].nftAddress,
                 auction[_auctionId].tokenId
             );
             uint256 _royaltyPercentage = mintingContract.fgetRoyaltyFeeInPBP(
-                auction[_auctionId].nftAddress,
                 auction[_auctionId].tokenId
             );
 
@@ -365,24 +340,16 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
             uint256 totalFee = serviceFee + royaltyFee;
             uint256 amountSendToSeller = auction[_auctionId].initialPrice.sub(totalFee);        
         
-            (bool success, ) = payable(MarketPlaceOwner).call{value: serviceFee}("");
-            require(success, "Transfer fee to MarketPlaceOwner failed");
-
-            (success, ) = payable(_royaltyReciver).call{value: royaltyFee}("");
-            require(success, "Transfer fee to royalty receiver failed");
-
-            (success, ) = payable(auction[_auctionId].nftOwner).call{value: amountSendToSeller}("");
-            require(success, "Transfer fee to seller failed");
+            transferFunds(MarketPlaceOwner ,serviceFee);
+            transferFunds(_royaltyReciver ,royaltyFee);
+            transferFunds(auction[_auctionId].nftOwner , amountSendToSeller);
 
         }else{
 
             uint256 amountSendToSeller = auction[_auctionId].initialPrice.sub(serviceFee);
 
-            (bool success, ) = payable(MarketPlaceOwner).call{value: serviceFee}("");
-            require(success, "Transfer fee to MarketPlaceOwner failed");
-
-            (success, ) = payable(auction[_auctionId].nftOwner).call{value: amountSendToSeller}("");
-            require(success, "Transfer fee to seller failed");
+            transferFunds(MarketPlaceOwner ,serviceFee);
+            transferFunds(auction[_auctionId].nftOwner , amountSendToSeller);
         }
 
         auction[_auctionId].nftClaimed = true;
@@ -395,7 +362,7 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
                 '0x00'
         );
 
-            return true;       
+                   
     }
 
     function cancellListingForFixedPRice(uint256 listingID) external {
@@ -480,6 +447,11 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         uint256 RoyaltyFee = _salePrice.mul(_royaltyFeePercentage).div(10000);
         
         return RoyaltyFee; 
+    }
+
+    function transferFunds(address _recipient, uint256 _amount) private {
+        (bool success, ) = payable(_recipient).call{value: _amount}("");
+        require(success, "Transfer  fee failed");
     }
 
 
