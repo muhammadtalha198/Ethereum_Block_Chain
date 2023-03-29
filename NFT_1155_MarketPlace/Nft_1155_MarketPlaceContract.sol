@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
-
+import "hardhat/console.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC1155/ERC1155Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC1155/IERC1155Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
@@ -237,9 +237,10 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
     }
 
 
-    function startBid( uint256 _auctionId) payable external whenNotPaused {
+    function startBid( uint256 _auctionId)  external payable whenNotPaused {
 
         require(_auctionId > 0,"inavlid auction id");
+        require(block.timestamp > auction[_auctionId].auctionStartTime, "you canot bid before auction started.");
         require(msg.sender != auction[_auctionId].nftOwner,"Seller can not place the bid on his own NFT");
         require(msg.value >= auction[_auctionId].initialPrice, "place a higher Bid than initial price");
         require(auction[_auctionId].listed, "Nft must be listed before bidding");
@@ -247,11 +248,18 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
 
         address  currentBidder  = auction[_auctionId].currentBidder;
+
         uint256  currentBidAmount = auction[_auctionId].currentBidAmount;
+        
+        console.log("currentBidAmount: ", currentBidAmount);
+        console.log("msg.value: ", msg.value);
+        
+        require(msg.value > currentBidAmount,"There is already higer or equal bid exist" );
 
-        require(msg.value <=  currentBidAmount,"There is already higer or equal bid exist" );
-
-        transferFunds(currentBidder ,currentBidAmount);
+        
+        if(msg.value > currentBidAmount) {
+            transferFunds(currentBidder ,currentBidAmount);
+        }
 
         auction[_auctionId].currentBidder = msg.sender;
         auction[_auctionId].currentBidAmount = msg.value;
@@ -476,3 +484,5 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
 
 }
+
+//0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2
