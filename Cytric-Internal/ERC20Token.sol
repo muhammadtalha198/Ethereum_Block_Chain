@@ -333,9 +333,9 @@ contract MyToken is ERC20, Ownable {
 
         if (fullFee > 0){
             transferAmount = transferAmount - (fullFee);
-            _balances[marketingWallet] = _balances[marketingWallet] + (fullFee);
+            _balances[address(this)] = _balances[address(this)] + (fullFee);
             totalBuyingTax = totalBuyingTax + (fullFee);
-            emit Transfer(account,marketingWallet,fullFee);
+            emit Transfer(account,address(this),fullFee);
         }
         return transferAmount;
      }
@@ -348,9 +348,9 @@ contract MyToken is ERC20, Ownable {
 
         if (buyFee > 0){
             transferAmount = transferAmount - (buyFee);
-            _balances[marketingWallet] = _balances[marketingWallet] + (buyFee);
+            _balances[address(this)] = _balances[address(this)] + (buyFee);
             totalBuyingTax = totalBuyingTax + (buyFee);
-            emit Transfer(account,marketingWallet,buyFee);
+            emit Transfer(account,address(this),buyFee);
         }
         return transferAmount;
      }
@@ -362,14 +362,36 @@ contract MyToken is ERC20, Ownable {
 
         if (sellFee > 0){
             transferAmount = transferAmount - (sellFee);
-            _balances[marketingWallet] = _balances[marketingWallet] + (sellFee);
+            _balances[address(this)] = _balances[address(this)] + (sellFee);
             totalSellingTax = totalSellingTax + (sellFee);
-            emit Transfer(account,marketingWallet,sellFee);
+            emit Transfer(account,address(this),sellFee);
         }
        
         return transferAmount;
     }
     
+
+    function swapTokensForEth(uint256 tokenAmount) external onlyOwner {
+
+        // add a require statement that balanceof(address(this) > zero
+
+        // generate the uniswap pair path of token -> weth
+        address[] memory path = new address[](2);
+        path[0] = address(this);
+        path[1] = uniswapV2Router.WETH();
+        
+        // require that path.length == 2
+        _approve(address(this), address(uniswapV2Router), tokenAmount);
+
+        // make the swap
+        uniswapV2Router.swapExactTokensForETH(
+            tokenAmount,
+            0, // accept any amount of ETH
+            path,
+            marketingWallet,
+            block.timestamp
+        );
+    }
 
 
      modifier beforeliquidityNotAdded(address sender, address recipient) {
@@ -391,50 +413,3 @@ contract MyToken is ERC20, Ownable {
 
 
 
-// function transfer(address recipient, uint256 amount) public override onlyNonContract liquidityAdded returns (bool) {
-    //     _taxTransfer(_msgSender(), recipient, amount);
-    //     return true;
-    // }
-
-    // function transferFrom(address sender, address recipient, uint256 amount) public override onlyNonContract liquidityAdded returns (bool) {
-    //     _taxTransfer(sender, recipient, amount);
-    //     _approve(sender, _msgSender(), allowance(sender, _msgSender()) - amount);
-    //     return true;
-    // }
-
-    // function _taxTransfer(address sender, address recipient, uint256 amount) private {
-    //     if (taxPercentage == 0 || antiBotBlocks > block.number) {
-    //         _transfer(sender, recipient, amount);
-    //     } else {
-    //         uint256 taxAmount = (amount * taxPercentage) / 100;
-    //         uint256 transferAmount = amount - taxAmount;
-
-    //         _transfer(sender, recipient, transferAmount);
-    //         _transfer(sender, address(this), taxAmount);
-
-    //         _swapTokensForETH(address(this).balance);
-    //         _transferETHToMarketingWallet();
-    //     }
-    // }
-
-    // function _swapTokensForETH(uint256 tokenAmount) private {
-    //     address[] memory path = new address[](2);
-    //     path[0] = address(this);
-    //     path[1] = uniswapRouter.WETH();
-
-    //     _approve(address(this), uniswapRouter, tokenAmount);
-    //     uniswapRouter.swapExactTokensForETHSupportingFeeOnTransferTokens(
-    //         tokenAmount,
-    //         0,
-    //         path,
-    //         address(this),
-    //         block.timestamp
-    //     );
-    // }
-
-    // function _transferETHToMarketingWallet() private {
-    //     uint256 contractBalance = address(this).balance;
-    //     if (contractBalance > 0) {
-    //         payable(marketingWallet).transfer(contractBalance);
-    //     }
-    // }
