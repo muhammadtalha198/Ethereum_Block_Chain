@@ -209,25 +209,39 @@ pragma solidity ^0.8.0;
 
 import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v4.3.0/contracts/token/ERC20/ERC20.sol";
 import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v4.3.0/contracts/access/Ownable.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/math/SafeMath.sol";
 
 
 contract MyToken is ERC20, Ownable {
     
-    
-    address private marketingWallet;
-    uint256 private taxPercentage;
-    uint256 private antiBotBlocks;
-    bool private isLiquidityAdded;
+    using SafeMath for uint256;
 
     IUniswapV2Router02 public  uniswapV2Router;
     address public  uniswapV2Pair;
+    
+    bool private isLiquidityAdded;
+    uint256 private antiBotBlocks;
+    uint256 private taxPercentage;
+    address private marketingWallet;
+
+    uint256 public _buyFee = 200; // 200 = 2.00%
+    uint256 public _sellFee = 100; // 100 = 1.00%
+    uint256 public totalBuyingTax;
+    uint256 public totalSellingTax;
+
+
+
+    mapping(address => bool) public whiteListed;
+    mapping(address => bool) isExcludedFromFee;
+    mapping(address => uint256) internal _balances;
 
     constructor(
 
         address[] memory wallets,
         uint256[] memory tokenAmounts,
         uint256 initialLiquidity,
-        uint256 _taxPercentage,
+        uint256 _buyTaxPercentage,
+        uint256 _sellTaxPercentage,
         uint256 _antiBotBlocks,
         address _marketingWallet
 
@@ -241,92 +255,101 @@ contract MyToken is ERC20, Ownable {
 
         _mint(address(this), initialLiquidity);
 
-        taxPercentage = _taxPercentage;
+        _buyFee = _taxPercentage;
         antiBotBlocks = _antiBotBlocks;
         marketingWallet = _marketingWallet;
         isLiquidityAdded = false;
 
         IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
-         // Create a uniswap pair for this new token
+  
         uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory())
             .createPair(address(this), _uniswapV2Router.WETH());
-
-        // set the rest of the contract variables
+        
         uniswapV2Router = _uniswapV2Router;
 
     }
 
-
-    function transfer(address recipient, uint256 amount) public override onlyNonContract liquidityAdded returns (bool) {
-        _taxTransfer(_msgSender(), recipient, amount);
-        return true;
-    }
-
-    function transferFrom(address sender, address recipient, uint256 amount) public override onlyNonContract liquidityAdded returns (bool) {
-        _taxTransfer(sender, recipient, amount);
-        _approve(sender, _msgSender(), allowance(sender, _msgSender()) - amount);
-        return true;
-    }
-
-    function _taxTransfer(address sender, address recipient, uint256 amount) private {
-        if (taxPercentage == 0 || antiBotBlocks > block.number) {
-            _transfer(sender, recipient, amount);
-        } else {
-            uint256 taxAmount = (amount * taxPercentage) / 100;
-            uint256 transferAmount = amount - taxAmount;
-
-            _transfer(sender, recipient, transferAmount);
-            _transfer(sender, address(this), taxAmount);
-
-            _swapTokensForETH(address(this).balance);
-            _transferETHToMarketingWallet();
-        }
-    }
-
-    function _swapTokensForETH(uint256 tokenAmount) private {
-        address[] memory path = new address[](2);
-        path[0] = address(this);
-        path[1] = uniswapRouter.WETH();
-
-        _approve(address(this), uniswapRouter, tokenAmount);
-        uniswapRouter.swapExactTokensForETHSupportingFeeOnTransferTokens(
-            tokenAmount,
-            0,
-            path,
-            address(this),
-            block.timestamp
-        );
-    }
-
-    function _transferETHToMarketingWallet() private {
-        uint256 contractBalance = address(this).balance;
-        if (contractBalance > 0) {
-            payable(marketingWallet).transfer(contractBalance);
-        }
-    }
+    
+    function addLiquidity( uint256 ethAmount) external payable liquidityNotAdded {
         
-        // _approve(address(this), uniswapRouter, tokenAmount);
-        // require(address(this).balance > 0, "No ether value sent");
-        // uint256 tokenAmount = balanceOf(address(this));
-
-    // function addLiquidity() external onlyOwner liquidityNotAdded {
-
-        function addLiquidity(uint256 tokenAmount, uint256 ethAmount) external payable liquidityNotAdded {
-        // approve token transfer to cover all possible scenarios
+        uint256 tokenAmount = balanceOf(address(this));
+        
         _approve(address(this), address(uniswapV2Router), tokenAmount);
-
-        // add the liquidity
         uniswapV2Router.addLiquidityETH{value: ethAmount}(
             address(this),
             tokenAmount,
-            0, // slippage is unavoidable
-            0, // slippage is unavoidable
+            0, 
+            0,
             owner(),
             block.timestamp
         );  
 
         isLiquidityAdded = true;
     }
+
+
+    function _transfer(address sender, address recipient, uint256 amount) private {
+
+
+        require(sender != address(0), "ERC20: transfer from the zero address");
+        require(recipient != address(0), "ERC20: transfer to the zero address");
+        
+        uint256 transferAmount = amount;
+
+        if(whiteListed[sender] || whiteListed[recipient]){
+            transferAmount = amount;     
+        }
+        else{
+
+            if(isExcludedFromFee[sender] && isExcludedFromFee[recipient]){
+                transferAmount = amount;
+            }
+            if(isExcludedFromFee[sender] && !isExcludedFromFee[recipient]){
+                transferAmount = BuyFee(sender,amount);
+            }
+            if(!isExcludedFromFee[sender] && isExcludedFromFee[recipient]){
+                transferAmount = SellFee(sender,amount);
+            }
+        }   
+
+        _balances[sender] = _balances[sender].sub(amount);
+        _balances[recipient] = _balances[recipient].add(transferAmount);
+        
+        emit Transfer(sender, recipient, transferAmount);
+    }
+
+
+     function BuyFee(address account, uint256 amount/*, uint256 rate*/) private returns (uint256) {
+        
+        uint256 transferAmount = amount;
+        
+        uint256 buyFee = amount.mul(_buyFee).div(10000);
+
+        if (buyFee > 0){
+            transferAmount = transferAmount.sub(buyFee);
+            _balances[marketingWallet] = _balances[marketingWallet].add(buyFee);
+            totalBuyingTax = totalBuyingTax.add(buyFee);
+            emit Transfer(account,marketingWallet,buyFee);
+        }
+     }
+
+     function SellFee(address account, uint256 amount/*, uint256 rate*/) private  returns (uint256) {
+        
+        uint256 transferAmount = amount;
+
+        uint256 sellFee = amount.mul(_sellFee).div(10000);
+
+        if (sellFee > 0){
+            transferAmount = transferAmount.sub(sellFee);
+            _balances[marketingWallet] = _balances[marketingWallet].add(sellFee);
+            totalSellingTax = totalSellingTax.add(sellFee);
+            emit Transfer(account,marketingWallet,sellFee);
+        }
+       
+        return transferAmount;
+    }
+
+
 
     function activateAntiBotMeasure(uint256 blocks) external onlyOwner liquidityAdded {
         antiBotBlocks = block.number + blocks;
@@ -350,3 +373,53 @@ contract MyToken is ERC20, Ownable {
     }
 
 }
+
+
+
+// function transfer(address recipient, uint256 amount) public override onlyNonContract liquidityAdded returns (bool) {
+    //     _taxTransfer(_msgSender(), recipient, amount);
+    //     return true;
+    // }
+
+    // function transferFrom(address sender, address recipient, uint256 amount) public override onlyNonContract liquidityAdded returns (bool) {
+    //     _taxTransfer(sender, recipient, amount);
+    //     _approve(sender, _msgSender(), allowance(sender, _msgSender()) - amount);
+    //     return true;
+    // }
+
+    // function _taxTransfer(address sender, address recipient, uint256 amount) private {
+    //     if (taxPercentage == 0 || antiBotBlocks > block.number) {
+    //         _transfer(sender, recipient, amount);
+    //     } else {
+    //         uint256 taxAmount = (amount * taxPercentage) / 100;
+    //         uint256 transferAmount = amount - taxAmount;
+
+    //         _transfer(sender, recipient, transferAmount);
+    //         _transfer(sender, address(this), taxAmount);
+
+    //         _swapTokensForETH(address(this).balance);
+    //         _transferETHToMarketingWallet();
+    //     }
+    // }
+
+    // function _swapTokensForETH(uint256 tokenAmount) private {
+    //     address[] memory path = new address[](2);
+    //     path[0] = address(this);
+    //     path[1] = uniswapRouter.WETH();
+
+    //     _approve(address(this), uniswapRouter, tokenAmount);
+    //     uniswapRouter.swapExactTokensForETHSupportingFeeOnTransferTokens(
+    //         tokenAmount,
+    //         0,
+    //         path,
+    //         address(this),
+    //         block.timestamp
+    //     );
+    // }
+
+    // function _transferETHToMarketingWallet() private {
+    //     uint256 contractBalance = address(this).balance;
+    //     if (contractBalance > 0) {
+    //         payable(marketingWallet).transfer(contractBalance);
+    //     }
+    // }
