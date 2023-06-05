@@ -209,23 +209,23 @@ pragma solidity ^0.8.0;
 
 import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v4.3.0/contracts/token/ERC20/ERC20.sol";
 import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v4.3.0/contracts/access/Ownable.sol";
-import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/math/SafeMath.sol";
+
 
 
 contract MyToken is ERC20, Ownable {
     
-    using SafeMath for uint256;
-
+    
     IUniswapV2Router02 public  uniswapV2Router;
     address public  uniswapV2Pair;
     
     bool private isLiquidityAdded;
     uint256 private antiBotBlocks;
+    uint256 private liquidityBotBlock;
     uint256 private taxPercentage;
     address private marketingWallet;
 
-    uint256 public _buyFee = 200; // 200 = 2.00%
-    uint256 public _sellFee = 100; // 100 = 1.00%
+    uint256 public _buyFee; // 200 = 2.00%
+    uint256 public _sellFee; // 100 = 1.00%
     uint256 public totalBuyingTax;
     uint256 public totalSellingTax;
 
@@ -255,7 +255,8 @@ contract MyToken is ERC20, Ownable {
 
         _mint(address(this), initialLiquidity);
 
-        _buyFee = _taxPercentage;
+        _buyFee = _buyTaxPercentage * 100;
+        _sellFee = _sellTaxPercentage * 100;
         antiBotBlocks = _antiBotBlocks;
         marketingWallet = _marketingWallet;
         isLiquidityAdded = false;
@@ -270,7 +271,7 @@ contract MyToken is ERC20, Ownable {
     }
 
     
-    function addLiquidity( uint256 ethAmount) external payable liquidityNotAdded {
+    function addLiquidity( uint256 ethAmount) external payable liquidityAdded onlyOwner {
         
         uint256 tokenAmount = balanceOf(address(this));
         
@@ -282,13 +283,15 @@ contract MyToken is ERC20, Ownable {
             0,
             owner(),
             block.timestamp
-        );  
+        ); 
 
+        liquidityBotBlock = block.number;
         isLiquidityAdded = true;
     }
 
 
-    function _transfer(address sender, address recipient, uint256 amount) private {
+    function _transfer(address sender, address recipient, uint256 amount) internal override
+    beforeliquidityNotAdded(sender,recipient ) {
 
 
         require(sender != address(0), "ERC20: transfer from the zero address");
@@ -296,7 +299,10 @@ contract MyToken is ERC20, Ownable {
         
         uint256 transferAmount = amount;
 
-        if(whiteListed[sender] || whiteListed[recipient]){
+        if(block.number < liquidityBotBlock + antiBotBlocks){
+            transferAmount = FullFee(sender,amount);
+        }
+        else if(whiteListed[sender] || whiteListed[recipient]){
             transferAmount = amount;     
         }
         else{
@@ -312,65 +318,74 @@ contract MyToken is ERC20, Ownable {
             }
         }   
 
-        _balances[sender] = _balances[sender].sub(amount);
-        _balances[recipient] = _balances[recipient].add(transferAmount);
+        _balances[sender] = _balances[sender] - amount;
+        _balances[recipient] = _balances[recipient] + transferAmount;
         
         emit Transfer(sender, recipient, transferAmount);
     }
 
-
-     function BuyFee(address account, uint256 amount/*, uint256 rate*/) private returns (uint256) {
+    function FullFee(address account, uint256 amount) private returns (uint256) {
         
         uint256 transferAmount = amount;
-        
-        uint256 buyFee = amount.mul(_buyFee).div(10000);
 
-        if (buyFee > 0){
-            transferAmount = transferAmount.sub(buyFee);
-            _balances[marketingWallet] = _balances[marketingWallet].add(buyFee);
-            totalBuyingTax = totalBuyingTax.add(buyFee);
-            emit Transfer(account,marketingWallet,buyFee);
+        uint256 _fullFee = 10000; // 100 %
+        uint256 fullFee = amount * (_fullFee) / (10000);
+
+        if (fullFee > 0){
+            transferAmount = transferAmount - (fullFee);
+            _balances[marketingWallet] = _balances[marketingWallet] + (fullFee);
+            totalBuyingTax = totalBuyingTax + (fullFee);
+            emit Transfer(account,marketingWallet,fullFee);
         }
+        return transferAmount;
      }
 
-     function SellFee(address account, uint256 amount/*, uint256 rate*/) private  returns (uint256) {
+
+     function BuyFee(address account, uint256 amount) private returns (uint256) {
         
         uint256 transferAmount = amount;
+        uint256 buyFee = amount * (_buyFee) / (10000);
 
-        uint256 sellFee = amount.mul(_sellFee).div(10000);
+        if (buyFee > 0){
+            transferAmount = transferAmount - (buyFee);
+            _balances[marketingWallet] = _balances[marketingWallet] + (buyFee);
+            totalBuyingTax = totalBuyingTax + (buyFee);
+            emit Transfer(account,marketingWallet,buyFee);
+        }
+        return transferAmount;
+     }
+
+     function SellFee(address account, uint256 amount) private  returns (uint256) {
+        
+        uint256 transferAmount = amount;
+        uint256 sellFee = amount * (_sellFee) / (10000);
 
         if (sellFee > 0){
-            transferAmount = transferAmount.sub(sellFee);
-            _balances[marketingWallet] = _balances[marketingWallet].add(sellFee);
-            totalSellingTax = totalSellingTax.add(sellFee);
+            transferAmount = transferAmount - (sellFee);
+            _balances[marketingWallet] = _balances[marketingWallet] + (sellFee);
+            totalSellingTax = totalSellingTax + (sellFee);
             emit Transfer(account,marketingWallet,sellFee);
         }
        
         return transferAmount;
     }
+    
 
 
-
-    function activateAntiBotMeasure(uint256 blocks) external onlyOwner liquidityAdded {
-        antiBotBlocks = block.number + blocks;
-    }
-
-     modifier liquidityNotAdded() {
-        require(!isLiquidityAdded, "Liquidity already added");
+     modifier beforeliquidityNotAdded(address sender, address recipient) {
+        
+        if (sender != owner() && recipient != owner()){
+            require(!isLiquidityAdded, "Liquidity already added");
+        }
         _;
     }
 
     modifier liquidityAdded() {
-        require(isLiquidityAdded, "Liquidity not added yet");
+        require(!isLiquidityAdded, "Liquidity already added.");
         _;
     }
 
-    modifier onlyNonContract() {
-        if (msg.sender != tx.origin) {
-            require(tx.origin == owner(), "Contracts are not allowed");
-        }
-        _;
-    }
+
 
 }
 
