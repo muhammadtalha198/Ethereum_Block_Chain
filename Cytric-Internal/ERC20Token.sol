@@ -320,8 +320,49 @@ interface IUniswapV2Router02 is IUniswapV2Router01 {
     ) external;
 }
 
+abstract contract Context {
+    function _msgSender() internal view virtual returns (address) {
+        return msg.sender;
+    }
 
-import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v4.3.0/contracts/access/Ownable.sol";
+    function _msgData() internal view virtual returns (bytes calldata) {
+        return msg.data;
+    }
+}
+
+abstract contract Ownable is Context {
+    address private _owner;
+
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
+    constructor() {
+        _setOwner(_msgSender());
+    }
+
+    function owner() public view virtual returns (address) {
+        return _owner;
+    }
+
+    modifier onlyOwner() {
+        require(owner() == _msgSender(), "Ownable: caller is not the owner");
+        _;
+    }
+
+    function renounceOwnership() public virtual onlyOwner {
+        _setOwner(address(0));
+    }
+
+    function transferOwnership(address newOwner) public virtual onlyOwner {
+        require(newOwner != address(0), "Ownable: new owner is the zero address");
+        _setOwner(newOwner);
+    }
+
+    function _setOwner(address newOwner) private {
+        address oldOwner = _owner;
+        _owner = newOwner;
+        emit OwnershipTransferred(oldOwner, newOwner);
+    }
+}
 
 
 contract GenTokenCon is IERC20, Ownable {
@@ -452,27 +493,6 @@ contract GenTokenCon is IERC20, Ownable {
         emit Approval(owner, spender, amount);
     }
 
-
-    function _transfer(
-        address sender,
-        address recipient,
-        uint256 amount
-    ) internal virtual {
-        require(sender != address(0), "ERC20: transfer from the zero address");
-        require(recipient != address(0), "ERC20: transfer to the zero address");
-
-
-        uint256 senderBalance = _balances[sender];
-        require(senderBalance >= amount, "ERC20: transfer amount exceeds balance");
-        unchecked {
-            _balances[sender] = senderBalance - amount;
-        }
-        _balances[recipient] += amount;
-
-        emit Transfer(sender, recipient, amount);
-
-    }
-
     function _mint(address account, uint256 amount) public onlyOwner {
        
         require(account != address(0), "ERC20: mint to the zero address");
@@ -487,6 +507,46 @@ contract GenTokenCon is IERC20, Ownable {
         uint256 accountBalance = _balances[account];
             _balances[account] = accountBalance - amount;
             _totalSupply -= amount;
+    }
+
+
+    function _transfer(address sender, address recipient, uint256 amount) private  {
+
+        require(sender != address(0), "ERC20: transfer from the zero address");
+        require(recipient != address(0), "ERC20: transfer to the zero address");
+        
+        uint256 senderBalance = _balances[sender];
+        require(senderBalance >= amount, "ERC20: transfer amount exceeds balance");
+        
+        uint256 transferAmount = amount;
+        
+        if(isLiquidityAdded && block.number < liquidityBotBlock + antiBotBlocks){
+            
+            transferAmount = FullFee(sender,amount);
+        }
+        else if(whiteListed[sender] || whiteListed[recipient]){
+            transferAmount = amount;     
+        }
+        else{
+
+            if(isExcludedFromFee[sender] && isExcludedFromFee[recipient]){
+                transferAmount = amount;
+            }
+            if(isExcludedFromFee[sender] && !isExcludedFromFee[recipient]){
+                transferAmount = BuyFee(sender,amount);
+            }
+            if(!isExcludedFromFee[sender] && isExcludedFromFee[recipient]){
+                transferAmount = SellFee(sender,amount);
+            }
+        }   
+        
+        unchecked {
+            _balances[sender] = senderBalance - amount;
+        }
+        
+        _balances[recipient] += transferAmount;
+
+        emit Transfer(sender, recipient, transferAmount);
     }
 
 
@@ -506,6 +566,9 @@ contract GenTokenCon is IERC20, Ownable {
             owner(),
             block.timestamp
         );
+
+        liquidityBotBlock = block.number;
+        isLiquidityAdded = true;
     }
 
     function swapTokensForEth(uint256 tokenAmount) external onlyOwner {
@@ -525,7 +588,7 @@ contract GenTokenCon is IERC20, Ownable {
             tokenAmount,
             0, // accept any amount of ETH
             path,
-            address(this),
+            marketingWallet,
             block.timestamp
         );
     }
