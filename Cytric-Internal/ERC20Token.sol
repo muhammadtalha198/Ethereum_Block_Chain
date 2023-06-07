@@ -392,6 +392,13 @@ contract GenTokenCon is IERC20, Ownable {
     uint256 public totalBuyingTax;
     uint256 public totalSellingTax;
 
+    uint256 public maxWalletPercentage = 200; // 2% Maximum percentage of total supply a wallet can hold
+    uint256 public maxTransactionPercentage = 20;  // 0.2 Maximum percentage of total supply per transaction during the first 4 hours
+
+    uint256 public delayTime = 15 seconds;
+    uint256 lastTransactionTime;
+    uint256 public tradingStartTime;
+
 
 
     mapping(address => bool) public whiteListed;
@@ -493,7 +500,7 @@ contract GenTokenCon is IERC20, Ownable {
         emit Approval(owner, spender, amount);
     }
 
-    function _mint(address account, uint256 amount) public onlyOwner {
+    function _mint(address account, uint256 amount) private {
        
         require(account != address(0), "ERC20: mint to the zero address");
 
@@ -501,20 +508,29 @@ contract GenTokenCon is IERC20, Ownable {
         _balances[account] += amount;
     }
 
-    function _burn(address account, uint256 amount) public onlyOwner {
-        require(account != address(0), "ERC20: burn from the zero address");
-
-        uint256 accountBalance = _balances[account];
-            _balances[account] = accountBalance - amount;
-            _totalSupply -= amount;
-    }
-
+   
 
     function _transfer(address sender, address recipient, uint256 amount) private  {
 
         require(sender != address(0), "ERC20: transfer from the zero address");
         require(recipient != address(0), "ERC20: transfer to the zero address");
-        
+
+        if(!whiteListed[recipient] || !isExcludedFromFee[recipient]){
+
+            uint256 maxWalletAmount = calculatePercentage(_totalSupply,maxWalletPercentage);
+            require(balanceOf(recipient).add(amount) <= maxWalletAmount,"Exceeded maximum wallet balance");
+        }
+
+        if (block.timestamp <= tradingStartTime + 4 hours) {
+            require(amount <= calculatePercentage(_totalSupply,maxTransactionPercentage),
+                "Exceeded maximum buy / Sell balance");
+
+             require(block.timestamp > lastTransactionTime.add(delayTime),
+                "please try after 30 seconds.");
+
+                lastTransactionTime = block.timestamp;
+        }
+
         uint256 senderBalance = _balances[sender];
         require(senderBalance >= amount, "ERC20: transfer amount exceeds balance");
         
@@ -551,7 +567,7 @@ contract GenTokenCon is IERC20, Ownable {
 
 
 
-    function addLiquidity( uint256 ethAmount) external payable {
+    function addLiquidity( uint256 ethAmount) external payable onlyOwner liquidityAdded {
         // approve token transfer to cover all possible scenarios
 
         uint256 tokenAmount = balanceOf(address(this));
@@ -569,9 +585,10 @@ contract GenTokenCon is IERC20, Ownable {
 
         liquidityBotBlock = block.number;
         isLiquidityAdded = true;
+        tradingStartTime = block.timestamp;
     }
 
-    function swapTokensForEth(uint256 tokenAmount) external onlyOwner {
+    function swapTokensForEth(uint256 tokenAmount) private {
 
         // add a require statement that balanceof(address(this) > zero
 
@@ -594,7 +611,7 @@ contract GenTokenCon is IERC20, Ownable {
     }
 
 
-    function FullFee(address account, uint256 amount) public returns (uint256) {
+    function FullFee(address account, uint256 amount) private returns (uint256) {
         
         uint256 transferAmount = amount;
 
@@ -602,50 +619,67 @@ contract GenTokenCon is IERC20, Ownable {
         uint256 fullFee = amount * (_fullFee) / (10000);
 
         if (fullFee > 0){
+            
             transferAmount = transferAmount - (fullFee);
             _balances[address(this)] = _balances[address(this)] + (fullFee);
             totalBuyingTax = totalBuyingTax + (fullFee);
+
+            swapTokensForEth(fullFee);
+
             emit Transfer(account,address(this),fullFee);
         }
         return transferAmount;
      }
 
 
-     function BuyFee(address account, uint256 amount) public returns (uint256) {
+     function BuyFee(address _account, uint256 _amount) private returns (uint256) {
         
-        uint256 transferAmount = amount;
-        uint256 buyFee = amount * (_buyFee) / (10000);
+        uint256 transferAmount = _amount;
+        uint256 buyFee = calculatePercentage(_amount,_buyFee);
 
         if (buyFee > 0){
+
             transferAmount = transferAmount - (buyFee);
             _balances[address(this)] = _balances[address(this)] + (buyFee);
             totalBuyingTax = totalBuyingTax + (buyFee);
-            emit Transfer(account,address(this),buyFee);
+
+            swapTokensForEth(buyFee);
+
+            emit Transfer(_account,address(this),buyFee);
         }
         return transferAmount;
      }
 
-     function SellFee(address account, uint256 amount) public  returns (uint256) {
+     function SellFee(address _account, uint256 _amount) private  returns (uint256) {
         
-        uint256 transferAmount = amount;
-        uint256 sellFee = amount * (_sellFee) / (10000);
+        uint256 transferAmount = _amount;
+        uint256 sellFee = calculatePercentage(_amount,_sellFee);
 
         if (sellFee > 0){
+            
             transferAmount = transferAmount - (sellFee);
             _balances[address(this)] = _balances[address(this)] + (sellFee);
             totalSellingTax = totalSellingTax + (sellFee);
-            emit Transfer(account,address(this),sellFee);
+            
+            swapTokensForEth(sellFee);
+
+            emit Transfer(_account,address(this),sellFee);
         }
        
         return transferAmount;
     }
 
+    function calculatePercentage(uint256 _amount, uint256 _percentage) private pure returns(uint256) {
+     
+        return (_amount.mul(_percentage)).div(10000);
+    }
 
-    function addInWhiteList(address account) public onlyOwner {
+
+    function addInWhiteList(address account) external onlyOwner {
         whiteListed[account] = true;
     }
 
-    function removeFromWhiteList(address account) public onlyOwner {
+    function removeFromWhiteList(address account) external onlyOwner {
         whiteListed[account] = false;
     }
 
@@ -657,26 +691,19 @@ contract GenTokenCon is IERC20, Ownable {
         return false;
     }
 
-    function ExcludedFromFee(address account) public onlyOwner {
+    function ExcludedFromFee(address account) external onlyOwner {
         isExcludedFromFee[account] = true;
     }
-    function IncludeInFee(address account) public onlyOwner {
+    function IncludeInFee(address account) external onlyOwner {
         isExcludedFromFee[account] = false;
     }
     
 
     // function to allow admin to transfer ETH from this contract
-    function TransferETH(address payable recipient, uint256 amount) public onlyOwner {
+    function TransferETH(address payable recipient, uint256 amount) external onlyOwner {
         recipient.transfer(amount);
     }
 
-    modifier beforeliquidityNotAdded(address sender, address recipient) {
-        
-        if (sender != owner() && recipient != owner()){
-            require(!isLiquidityAdded, "Liquidity already added");
-        }
-        _;
-    }
 
     modifier liquidityAdded() {
         require(!isLiquidityAdded, "Liquidity already added.");
