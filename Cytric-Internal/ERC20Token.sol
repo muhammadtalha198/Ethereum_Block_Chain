@@ -396,13 +396,13 @@ contract GenTokenCon is IERC20, Ownable {
     uint256 public maxTransactionPercentage = 20;  // 0.2 Maximum percentage of total supply per transaction during the first 4 hours
 
     uint256 public delayTime = 15 seconds;
-    uint256 lastTransactionTime;
     uint256 public tradingStartTime;
 
 
 
     mapping(address => bool) public whiteListed;
-    mapping(address => bool) isExcludedFromFee; 
+    mapping(address => bool) isExcludedFromFee;
+    mapping(address => uint256) public lastTransactionTime;
     
 
     constructor(
@@ -525,10 +525,10 @@ contract GenTokenCon is IERC20, Ownable {
             require(amount <= calculatePercentage(_totalSupply,maxTransactionPercentage),
                 "Exceeded maximum buy / Sell balance");
 
-             require(block.timestamp > lastTransactionTime.add(delayTime),
+             require(block.timestamp > lastTransactionTime[msg.sender].add(delayTime),
                 "please try after 30 seconds.");
 
-                lastTransactionTime = block.timestamp;
+                lastTransactionTime[msg.sender] = block.timestamp;
         }
 
         uint256 senderBalance = _balances[sender];
@@ -587,6 +587,8 @@ contract GenTokenCon is IERC20, Ownable {
         isLiquidityAdded = true;
         tradingStartTime = block.timestamp;
     }
+
+
 
     function swapTokensForEth(uint256 tokenAmount) private {
 
