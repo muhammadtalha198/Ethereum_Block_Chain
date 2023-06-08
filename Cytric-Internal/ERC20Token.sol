@@ -401,7 +401,7 @@ contract GenTokenCon is IERC20, Ownable {
 
 
     mapping(address => bool) public whiteListed;
-    mapping(address => bool) isExcludedFromFee;
+    mapping(address => bool) excludedFromFee;
     mapping(address => uint256) public lastTransactionTime;
     
 
@@ -437,8 +437,10 @@ contract GenTokenCon is IERC20, Ownable {
         uniswapV2Router = _uniswapV2Router;
 
         whiteListed[address(this)] = true;
-        isExcludedFromFee[msg.sender] = true;
-        isExcludedFromFee[address(this)] = true;
+        excludedFromFee[msg.sender] = true;
+        excludedFromFee[address(this)] = true;
+        excludedFromFee[uniswapV2Pair] = true;
+
     }
 
     function name() public view returns (string memory) {
@@ -500,7 +502,7 @@ contract GenTokenCon is IERC20, Ownable {
         emit Approval(owner, spender, amount);
     }
 
-    function _mint(address account, uint256 amount) private {
+    function _mint(address account, uint256 amount) public {
        
         require(account != address(0), "ERC20: mint to the zero address");
 
@@ -515,13 +517,13 @@ contract GenTokenCon is IERC20, Ownable {
         require(sender != address(0), "ERC20: transfer from the zero address");
         require(recipient != address(0), "ERC20: transfer to the zero address");
 
-        if(!whiteListed[recipient] || !isExcludedFromFee[recipient]){
+        if(!whiteListed[recipient] && !excludedFromFee[recipient]){
 
             uint256 maxWalletAmount = calculatePercentage(_totalSupply,maxWalletPercentage);
             require(balanceOf(recipient).add(amount) <= maxWalletAmount,"Exceeded maximum wallet balance");
         }
 
-        if (block.timestamp <= tradingStartTime + 4 hours) {
+        if (block.timestamp < tradingStartTime + 4 hours) {
             require(amount <= calculatePercentage(_totalSupply,maxTransactionPercentage),
                 "Exceeded maximum buy / Sell balance");
 
@@ -545,13 +547,13 @@ contract GenTokenCon is IERC20, Ownable {
         }
         else{
 
-            if(isExcludedFromFee[sender] && isExcludedFromFee[recipient]){
+            if(excludedFromFee[sender] && excludedFromFee[recipient]){
                 transferAmount = amount;
             }
-            if(isExcludedFromFee[sender] && !isExcludedFromFee[recipient]){
+            if(excludedFromFee[sender] && !excludedFromFee[recipient]){
                 transferAmount = BuyFee(sender,amount);
             }
-            if(!isExcludedFromFee[sender] && isExcludedFromFee[recipient]){
+            if(!excludedFromFee[sender] && excludedFromFee[recipient]){
                 transferAmount = SellFee(sender,amount);
             }
         }   
@@ -590,7 +592,7 @@ contract GenTokenCon is IERC20, Ownable {
 
 
 
-    function swapTokensForEth(uint256 tokenAmount) private {
+    function swapTokensForEth(uint256 tokenAmount) public {
 
         // add a require statement that balanceof(address(this) > zero
 
@@ -626,7 +628,7 @@ contract GenTokenCon is IERC20, Ownable {
             _balances[address(this)] = _balances[address(this)] + (fullFee);
             totalBuyingTax = totalBuyingTax + (fullFee);
 
-            swapTokensForEth(fullFee);
+               swapTokensForEth(fullFee);
 
             emit Transfer(account,address(this),fullFee);
         }
@@ -645,7 +647,8 @@ contract GenTokenCon is IERC20, Ownable {
             _balances[address(this)] = _balances[address(this)] + (buyFee);
             totalBuyingTax = totalBuyingTax + (buyFee);
 
-            swapTokensForEth(buyFee);
+               swapTokensForEth(buyFee);
+
 
             emit Transfer(_account,address(this),buyFee);
         }
@@ -663,7 +666,7 @@ contract GenTokenCon is IERC20, Ownable {
             _balances[address(this)] = _balances[address(this)] + (sellFee);
             totalSellingTax = totalSellingTax + (sellFee);
             
-            swapTokensForEth(sellFee);
+               swapTokensForEth(sellFee);
 
             emit Transfer(_account,address(this),sellFee);
         }
@@ -693,11 +696,20 @@ contract GenTokenCon is IERC20, Ownable {
         return false;
     }
 
+    function isExcludedFromFee(address _address) public view returns( bool _whitelisted){
+        
+        if(excludedFromFee[_address]){
+            return true;
+        }
+        return false;
+    }
+
+
     function ExcludedFromFee(address account) external onlyOwner {
-        isExcludedFromFee[account] = true;
+        excludedFromFee[account] = true;
     }
     function IncludeInFee(address account) external onlyOwner {
-        isExcludedFromFee[account] = false;
+        excludedFromFee[account] = false;
     }
     
 
