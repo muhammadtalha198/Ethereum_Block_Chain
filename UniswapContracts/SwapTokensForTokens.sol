@@ -92,8 +92,9 @@ contract SwapTokenContract is Ownable{
     address public tokenB;
 
     IUniswapV2Router02 public  uniswapV2Router;
-    address public  uniswapV2Pair;
-
+    address public  uniswapV2Pair; 
+    
+    event Log(uint256 amountTokenA, uint256 amountTokenB, uint256 totalyLiquidityTokens);
 
     constructor (address _tokenA, address _tokenB){
 
@@ -107,6 +108,26 @@ contract SwapTokenContract is Ownable{
 
     function addLiqidity(uint256 _amountTokenA, uint256 _amountTokenB) external onlyOwner{
         
+        IERC20(tokenA).transferFrom(msg.sender, address(this), _amountTokenA);
+        IERC20(tokenB).transferFrom(msg.sender, address(this), _amountTokenB);
+
+        IERC20(tokenA).approve( address(uniswapV2Router), _amountTokenA);
+        IERC20(tokenB).approve( address(uniswapV2Router), _amountTokenB);
+
+        (uint256 amountTokenA, uint256 amountTokenB, uint256 totalyLiquidityTokens)=
+        uniswapV2Router.addLiquidity(
+            tokenA,
+            tokenB,
+            _amountTokenA,
+            _amountTokenB,
+            0,
+            0,
+            owner(),
+            block.timestamp
+        );
+
+        emit Log(amountTokenA, amountTokenB, totalyLiquidityTokens);
+
     }
 
     function swapTokens() external {
