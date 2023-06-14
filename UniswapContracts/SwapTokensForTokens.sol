@@ -66,6 +66,7 @@ interface IUniswapV2Router02{
     function factory() external pure returns (address);
     function WETH() external pure returns (address);
 
+
     function addLiquidity(
         address tokenA,
         address tokenB,
@@ -76,6 +77,16 @@ interface IUniswapV2Router02{
         address to,
         uint deadline
     ) external returns (uint amountA, uint amountB, uint liquidity);
+    
+    function removeLiquidity(
+        address tokenA,
+        address tokenB,
+        uint liquidity,
+        uint amountAMin,
+        uint amountBMin,
+        address to,
+        uint deadline
+    ) external returns (uint amountA, uint amountB);
     
     function swapExactTokensForTokens(
         uint amountIn,
@@ -122,12 +133,28 @@ contract SwapTokenContract is Ownable{
             _amountTokenB,
             0,
             0,
-            owner(),
+            address(this),
             block.timestamp
         );
 
         emit Log(amountTokenA, amountTokenB, totalyLiquidityTokens);
 
+    }
+
+    function removeLiquidity() external onlyOwner{
+          
+        uint256 liquidityTokens = IERC20(uniswapV2Pair).balanceOf(address(this));
+        IERC20(uniswapV2Pair).approve(address(uniswapV2Router), liquidityTokens);
+
+        uniswapV2Router.removeLiquidity(
+            tokenA, 
+            tokenB,
+            liquidityTokens,
+            0,
+            0,
+            address(this),
+            block.timestamp
+        );
     }
 
     function swapTokens() external {
