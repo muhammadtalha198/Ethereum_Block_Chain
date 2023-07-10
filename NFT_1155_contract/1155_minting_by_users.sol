@@ -29,19 +29,39 @@ contract MyToken is ERC1155, Ownable,Pausable {
     }
 
     function getTokenURI(uint256 tokenId) public view returns (string memory) {
-        return _tokenURIs[tokenId];
+
+        string memory currentBaseURI = _tokenURIs[tokenId];
+        return string(abi.encodePacked(currentBaseURI,Strings.toString(tokenId),".json"));
+
     }
 
-    function mint(address account, uint256 id, uint256 amount, bytes memory data,string memory uri) public onlyOwner {
+    function mint(address account, uint256 id, uint256 amount, bytes memory data,string memory uri) public  {
         _mint(account, id, amount, data);
         setTokenURI(id, uri);
     }
 
-    function mintBatch(address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data,string[] memory uris) public onlyOwner{
+    function mintBatch(address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data,string[] memory uris) public {
         _mintBatch(to, ids, amounts, data);
         for (uint256 i = 0; i < ids.length; i++) {
             setTokenURI(ids[i], uris[i]);
         }
     }
+
+    function _beforeTokenTransfer(address operator, address from, address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data)
+        internal
+        whenNotPaused
+        override
+    {
+        super._beforeTokenTransfer(operator, from, to, ids, amounts, data);
+    }
+
+    function pause() public onlyOwner {
+        _pause();
+    }
+
+    function unpause() public onlyOwner {
+        _unpause();
+    }
+
 
 }
