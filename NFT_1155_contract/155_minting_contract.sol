@@ -1,3 +1,15 @@
+/*
+
+    In case owner is minting by him self then sale them 
+    The ipfs link : https://ipfs.io/ipfs/QmTqdUbVkaNfie3YvJK4J7j2nErtMCkxwEfK7KzedFSpMs/{id}.json
+    used to set in setUri function will be : https://ipfs.io/ipfs/QmTqdUbVkaNfie3YvJK4J7j2nErtMCkxwEfK7KzedFSpMs/
+
+*/
+
+
+
+
+
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
