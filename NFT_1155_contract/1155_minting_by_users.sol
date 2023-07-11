@@ -6,7 +6,6 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Strings.sol"; 
 import "@openzeppelin/contracts/security/Pausable.sol";
 
-
 contract MyToken is ERC1155, Ownable,Pausable {
     
     string public name;
@@ -14,7 +13,6 @@ contract MyToken is ERC1155, Ownable,Pausable {
     uint256 public tokenId;
 
     mapping(uint256 => string) private _tokenURIs;
-    mapping(uint256 => bool) public alreadyMinted;
 
     event Mints(address minter,uint256 tokenid,uint256 amount,string tokenUri);
     event BatchMints(address minter,uint256[] tokenid,uint256[] amount,string[] tokenUris);
@@ -37,46 +35,45 @@ contract MyToken is ERC1155, Ownable,Pausable {
 
     }
 
-    function mint(/*uint256 _tokenId,*/ uint256 _amount,string memory _uri) external whenNotPaused {
+    function mint( uint256 _amount,string memory _uri) external whenNotPaused {
         
-        
-        // require(_tokenId != 0, "TokenId cannot be 0");
-        // require(!alreadyMinted[tokenId], "Tokens are already minted on this id.");
         require( _amount > 0 && _amount <= 100," NFT amount must be between 1 and 100");
         require(bytes(_uri).length > 0, "tokenuri cannot be empty");
         
-        tokenId++;
         
         _mint(msg.sender, tokenId, _amount, "0x00");
         _setURI(tokenId, _uri);
-        // alreadyMinted[_tokenId] = true;
+        
+        tokenId++;
+        
         emit Mints(msg.sender, tokenId, _amount, _uri);
 
     }
 
-    function mintBatch(/*uint256[] memory _tokenIds*/uint256 noOfTokens, uint256[] memory _amounts,string[] memory _tokenUris) external whenNotPaused {
+
+
+    function mintBatch(uint256 noOfTokens, uint256[] memory _amounts,string[] memory _tokenUris) external whenNotPaused {
         
-        // require(_tokenIds.length > 0, "tokenId cannot be empty");
-        require(_tokenUris.length > 0, "tokenUris cannot be empty"); // Remove this extar require statement
-        require(_amounts.length > 0, "amounts cannot be empty"); // Remove this extar require statement
+        require(_tokenUris.length > 0, "tokenUris cannot be empty"); 
+        require(_amounts.length > 0, "amounts cannot be empty"); 
         require(_tokenUris.length == _amounts.length &&
                  _amounts.length == noOfTokens,"Array lengths must match");
         
-        uint256 tokenid = ++tokenId;
-        uint256[] memory ids;
+        uint256[] memory tokenids = new uint256[](noOfTokens);
         
         for (uint256 i = 0; i < noOfTokens; i++) {
              
-                require(_amounts[i] > 0 && _amounts[i] <= 100,"Each NFT can have no more than 100 copies");
-                ids[i]= tokenid;
-                
-                _setURI(tokenid, _tokenUris[i]);
-                tokenid++;
+            require(_amounts[i] > 0 && _amounts[i] <= 100,"Each NFT can have no more than 100 copies");
+            
+            tokenids[i]= tokenId;
+            _setURI(tokenId, _tokenUris[i]);
+            
+            tokenId++;
         }
-        
-        _mintBatch(msg.sender, ids, _amounts, "0x00");
 
-        emit BatchMints(msg.sender, ids, _amounts, _tokenUris);
+        _mintBatch(msg.sender, tokenids, _amounts, "0x00");
+
+        emit BatchMints(msg.sender, tokenids, _amounts, _tokenUris);
     }
 
     function _beforeTokenTransfer(address operator, address from, address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data)
