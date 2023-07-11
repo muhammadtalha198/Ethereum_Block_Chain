@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.19;
 
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -23,12 +23,12 @@ contract MyToken is ERC1155, Ownable,Pausable {
         symbol = _symbol;
     }
 
-    function _setURI(uint256 _tokenId,string memory newuri) private    {
+    function _setURI(uint256 _tokenId,string memory newuri) internal virtual {
         _tokenURIs[_tokenId] = newuri;
     }
     
 
-    function getTokenURI(uint256 _tokenId) public view returns (string memory) {
+    function uri(uint256 _tokenId) public view override returns (string memory) {
 
         string memory currentBaseURI = _tokenURIs[_tokenId];
         return string(abi.encodePacked(currentBaseURI));
