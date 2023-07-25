@@ -5,44 +5,44 @@ import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Strings.sol"; 
 import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
 
-contract MyToken is ERC1155, Ownable,Pausable {
+contract MyToken is ERC1155, Ownable, Pausable, ERC1155Burnable {
     
     string public name;
     string public symbol;
     uint256 public tokenId;
+    uint256 public mintingPrice;
 
     mapping(uint256 => string) private _tokenURIs;
+    mapping(address => uint256[]) private userTokenIds;
 
     event Mints(address minter,uint256 tokenid,uint256 amount,string tokenUri);
     event BatchMints(address minter,uint256[] tokenid,uint256[] amount,string[] tokenUris);
+
     
-    constructor(string memory _name, string memory _symbol) ERC1155("") {
+    
+    constructor(string memory _name, string memory _symbol, uint256 _mintingPrice) 
+            ERC1155("") {
 
         name = _name;
         symbol = _symbol;
+        mintingPrice = _mintingPrice;
     }
 
-    function _setURI(uint256 _tokenId,string memory newuri) internal virtual {
-        _tokenURIs[_tokenId] = newuri;
-    }
     
 
-    function uri(uint256 _tokenId) public view override returns (string memory) {
-
-        string memory currentBaseURI = _tokenURIs[_tokenId];
-        return string(abi.encodePacked(currentBaseURI));
-
-    }
-
-    function mint( uint256 _amount,string memory _uri) external whenNotPaused {
+    function mint( uint256 _amount,string memory _uri) external payable whenNotPaused {
         
-        require( _amount > 0 && _amount <= 100," NFT amount must be between 1 and 100");
         require(bytes(_uri).length > 0, "tokenuri cannot be empty");
         
+        if(msg.sender != owner()){
+            require(msg.value == mintingPrice, "please put the right amount of price.");
+        }
         
         _mint(msg.sender, tokenId, _amount, "0x00");
         _setURI(tokenId, _uri);
+        userTokenIds[msg.sender].push(tokenId);
         
         tokenId++;
         
@@ -52,21 +52,25 @@ contract MyToken is ERC1155, Ownable,Pausable {
 
 
 
-    function mintBatch(uint256 noOfTokens, uint256[] memory _amounts,string[] memory _tokenUris) external whenNotPaused {
+    function mintBatch(uint256 noOfTokens, uint256[] memory _amounts,string[] memory _tokenUris) external payable whenNotPaused {
         
         require(_tokenUris.length > 0, "tokenUris cannot be empty"); 
         require(_amounts.length > 0, "amounts cannot be empty"); 
         require(_tokenUris.length == _amounts.length &&
                  _amounts.length == noOfTokens,"Array lengths must match");
         
+        if(msg.sender != owner()){
+            require(msg.value == mintingPrice, "please put the right amount of price.");
+        }
+        
         uint256[] memory tokenids = new uint256[](noOfTokens);
         
         for (uint256 i = 0; i < noOfTokens; i++) {
              
-            require(_amounts[i] > 0 && _amounts[i] <= 100,"Each NFT can have no more than 100 copies");
             
             tokenids[i]= tokenId;
             _setURI(tokenId, _tokenUris[i]);
+            userTokenIds[msg.sender].push(tokenId);
             
             tokenId++;
         }
@@ -74,6 +78,22 @@ contract MyToken is ERC1155, Ownable,Pausable {
         _mintBatch(msg.sender, tokenids, _amounts, "0x00");
 
         emit BatchMints(msg.sender, tokenids, _amounts, _tokenUris);
+    }
+
+    function getUserTokenIds(address user) external view returns (uint256[] memory) {
+        return userTokenIds[user];
+    }
+
+    function _setURI(uint256 _tokenId,string memory newuri) private {
+        _tokenURIs[_tokenId] = newuri;
+    }
+    
+
+    function uri(uint256 _tokenId) public view override returns (string memory) {
+
+        string memory currentBaseURI = _tokenURIs[_tokenId];
+        return string(abi.encodePacked(currentBaseURI));
+
     }
 
     function _beforeTokenTransfer(address operator, address from, address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data)
@@ -90,6 +110,16 @@ contract MyToken is ERC1155, Ownable,Pausable {
 
     function unpause() public onlyOwner {
         _unpause();
+    }
+
+    function setMintingPrice(uint256 _mintingPrice) external onlyOwner {
+        mintingPrice = _mintingPrice;
+    }
+
+    function withdrawAmount() external onlyOwner {
+
+        (bool success, ) = payable(msg.sender).call{value: address(this).balance}("");
+            require(success, "Withdrawal failure");
     }
 
 
