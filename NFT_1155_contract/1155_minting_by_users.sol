@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
 
-contract MyToken is ERC1155, Ownable, Pausable, ERC1155Burnable {
+contract DRBSudi is ERC1155, Ownable, Pausable, ERC1155Burnable {
     
     string public name;
     string public symbol;
@@ -32,7 +32,7 @@ contract MyToken is ERC1155, Ownable, Pausable, ERC1155Burnable {
 
     
 
-    function mint( uint256 _amount,string memory _uri) external payable whenNotPaused {
+    function mint( uint256 _noOfCopies,string memory _uri) external payable whenNotPaused {
         
         require(bytes(_uri).length > 0, "tokenuri cannot be empty");
         
@@ -40,27 +40,27 @@ contract MyToken is ERC1155, Ownable, Pausable, ERC1155Burnable {
             require(msg.value == mintingPrice, "please put the right amount of price.");
         }
         
-        _mint(msg.sender, tokenId, _amount, "0x00");
+        _mint(msg.sender, tokenId, _noOfCopies, "0x00");
         _setURI(tokenId, _uri);
         userTokenIds[msg.sender].push(tokenId);
         
         tokenId++;
         
-        emit Mints(msg.sender, tokenId, _amount, _uri);
+        emit Mints(msg.sender, tokenId, _noOfCopies, _uri);
 
     }
 
 
 
-    function mintBatch(uint256 noOfTokens, uint256[] memory _amounts,string[] memory _tokenUris) external payable whenNotPaused {
+    function mintBatch(uint256 noOfTokens, uint256[] memory _noOfCopies,string[] memory _tokenUris) external payable whenNotPaused {
         
         require(_tokenUris.length > 0, "tokenUris cannot be empty"); 
-        require(_amounts.length > 0, "amounts cannot be empty"); 
-        require(_tokenUris.length == _amounts.length &&
-                 _amounts.length == noOfTokens,"Array lengths must match");
+        require(_noOfCopies.length > 0, "amounts cannot be empty"); 
+        require(_tokenUris.length == _noOfCopies.length &&
+                 _noOfCopies.length == noOfTokens,"Array lengths must match");
         
         if(msg.sender != owner()){
-            require(msg.value == mintingPrice, "please put the right amount of price.");
+            require(msg.value == mintingPrice * noOfTokens, "please put the right amount of price.");
         }
         
         uint256[] memory tokenids = new uint256[](noOfTokens);
@@ -75,9 +75,9 @@ contract MyToken is ERC1155, Ownable, Pausable, ERC1155Burnable {
             tokenId++;
         }
 
-        _mintBatch(msg.sender, tokenids, _amounts, "0x00");
+        _mintBatch(msg.sender, tokenids, _noOfCopies, "0x00");
 
-        emit BatchMints(msg.sender, tokenids, _amounts, _tokenUris);
+        emit BatchMints(msg.sender, tokenids, _noOfCopies, _tokenUris);
     }
 
     function getUserTokenIds(address user) external view returns (uint256[] memory) {
