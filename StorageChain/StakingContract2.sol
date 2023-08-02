@@ -3,10 +3,10 @@
 // Storage Nodes can stake Native STOR Tokens and will Get rewarrds 
 // Reward Calculattion will be on WebEnd
 // Will be deployed on Storage chain
-
+import "hardhat/console.sol";
 //SPDX-License-Identifier: MIT
 
-pragma solidity >= 0.8.16;
+pragma solidity >= 0.8.19;
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 
@@ -23,29 +23,7 @@ contract StakingContract is Ownable {
       uint256 rewardAmount;
       uint256 rewardTransferdTime;
     }
-
-
-    mapping(address => mapping( string => StakeInfo)) public stakeInfo;
-    mapping(string => UserRewardInfo) public userRewardInfo;
- 
-    uint256 public totalStakedTokens;
     
-    
-    function fillTreasury() external payable onlyOwner {
-        require(msg.value > 0, "Invalid Amount");
-    }
-    
-    function stakeTokens(string memory _nodeId) external payable {
-
-      require(msg.value > 0, "Cannot stake 0");                                                                                                                               
-      
-      
-      totalStakedTokens += msg.value;
-      
-      stakeInfo[msg.sender][_nodeId].stakedAmount = msg.value;
-      stakeInfo[msg.sender][_nodeId].staked = true;
-    }
-
     struct RewardInfo{
       string nodeId;
       string rewardId;
@@ -56,50 +34,88 @@ contract StakingContract is Ownable {
     }
 
     RewardInfo[] public rewardInfoList;
+
+
+
+    mapping(address => mapping( string => StakeInfo)) public stakeInfo;
+    mapping(string => UserRewardInfo) public userRewardInfo;
+ 
+    uint256 public totalStakedTokens;
+    
+    
+    function fillTreasury() external payable onlyOwner {
+        
+        require(msg.sender.balance >= msg.value, "insufficient balance.");
+    }
+    
+    function stakeTokens(string memory _nodeId) external payable {
+
+        require(msg.sender.balance >=msg.value, "insufficient balance.");                                                                                                                               
+
+        totalStakedTokens += msg.value;
+
+        stakeInfo[msg.sender][_nodeId].stakedAmount = msg.value;
+        stakeInfo[msg.sender][_nodeId].staked = true;
+    }
+
      
 
-    function transferRewards(RewardInfo[] memory sendReward) payable external onlyOwner returns(uint256){
-  
-      for (uint i =0;  i < sendReward.length; i++  ) {
+    function transferRewards(RewardInfo[] memory sendReward) external onlyOwner returns(uint256){
+    
+        uint256 totalReward;
         
-        string memory _nodeId = sendReward[i].nodeId;
-        string memory _rewardId = sendReward[i].rewardId;
-        uint256 _rewardAmount = sendReward[i].rewardAmount;
-        address _userAddress = sendReward[i].userAddress;
-        uint256 _amount = sendReward[i].rewardAmount;
+        for (uint i =0;  i < sendReward.length; i++){
+            totalReward += sendReward[i].rewardAmount;
+        }
+        
+        require(address(this).balance >= totalReward,"Please Fill Treasuery.");
+        for (uint i =0;  i < sendReward.length; i++) {
+        
+            string memory _nodeId = sendReward[i].nodeId;
+            string memory _rewardId = sendReward[i].rewardId;
+            uint256 _rewardAmount = sendReward[i].rewardAmount;
+            address _userAddress = sendReward[i].userAddress;
+            uint256 _amount = sendReward[i].rewardAmount;
 
 
-        userRewardInfo[_rewardId].rewardPaid = true;
-        userRewardInfo[_rewardId].rewardAmount = _amount; 
-        userRewardInfo[_rewardId].rewardTransferdTime = block.timestamp;
+            userRewardInfo[_rewardId].rewardPaid = true;
+            userRewardInfo[_rewardId].rewardAmount = _amount; 
+            userRewardInfo[_rewardId].rewardTransferdTime = block.timestamp;
 
-        RewardInfo memory sendRewards;
+            RewardInfo memory sendRewards;
 
-        sendRewards.nodeId = _nodeId;
-        sendRewards.rewardId = _rewardId;
-        sendRewards.userAddress = _userAddress;
-        sendRewards.rewardAmount= _rewardAmount;
-        sendRewards.rewardPaid = true;
-        sendRewards.rewardTransferdTime = block.timestamp;
+            sendRewards.nodeId = _nodeId;
+            sendRewards.rewardId = _rewardId;
+            sendRewards.userAddress = _userAddress;
+            sendRewards.rewardAmount= _rewardAmount;
+            sendRewards.rewardPaid = true;
+            sendRewards.rewardTransferdTime = block.timestamp;
 
-        rewardInfoList.push(sendRewards);
+            rewardInfoList.push(sendRewards);
 
-        (bool success, ) = payable(_userAddress).call{value: _rewardAmount}("");
-        require(success, "Withdrawal failure");
-      }
+            (bool success, ) = payable(_userAddress).call{value: _rewardAmount}("");
+            require(success, "Withdrawal failure");
+        }
 
-      return rewardInfoList.length;
+        return rewardInfoList.length;
        
     }
 
-     function OneMonthInfo(uint256 startTime, uint256 endTime) external view returns (RewardInfo[] memory) {
+
+    function list() external view returns (RewardInfo[] memory) {
+        return rewardInfoList;
+    }
+
+
+     function OneMonthInfo(uint256 _startTime, uint256 _endTime) external view returns (RewardInfo[] memory) {
          
-        RewardInfo[] memory _rewardInfoList =  rewardInfoList;
+        RewardInfo[] memory _rewardInfoList =  new RewardInfo[](rewardInfoList.length);
+        
         uint256 count;
 
         for (uint256 i = 0; i < rewardInfoList.length; i++) {
-            if (rewardInfoList[i].rewardTransferdTime >= startTime && rewardInfoList[i].rewardTransferdTime <= endTime) {
-
+               
+            if (rewardInfoList[i].rewardTransferdTime >= _startTime && rewardInfoList[i].rewardTransferdTime <= _endTime) {
                 _rewardInfoList[count] = rewardInfoList[i]; 
                 count++; 
             }
@@ -128,7 +144,11 @@ contract StakingContract is Ownable {
          _rewardTransferdTime = userRewardInfo[_rewardId].rewardTransferdTime;
 
         return(_staked,_stakedAmount,_rewardPaid,_rewardAmount,_rewardTransferdTime);
-      }
+    }
+
+    function checkTreasuryBalance() external onlyOwner view returns (uint256) {
+        return address(this).balance; 
+    }
 
  
     receive() external payable {
