@@ -7,12 +7,17 @@ import "hardhat/console.sol";
 //SPDX-License-Identifier: MIT
 
 pragma solidity >= 0.8.19;
+import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 
-contract StakingContract is Ownable {
+contract StakingContract is Ownable,Pausable {
     
-    
+    struct UserInfo {
+      string[] nodeIds;
+      uint256 totalStakedAmount;
+      uint256 totalRewardAmount;
+    }
     struct StakeInfo {
       bool staked;
       uint256 stakedAmount;
@@ -39,6 +44,7 @@ contract StakingContract is Ownable {
 
     mapping(address => mapping( string => StakeInfo)) public stakeInfo;
     mapping(string => UserRewardInfo) public userRewardInfo;
+    mapping(address => UserInfo) public userInfo;
  
     uint256 public totalStakedTokens;
     
@@ -48,14 +54,31 @@ contract StakingContract is Ownable {
         require(msg.sender.balance >= msg.value, "insufficient balance.");
     }
     
-    function stakeTokens(string memory _nodeId) external payable {
+    function stakeTokens(string memory _nodeId) external payable whenNotPaused {
 
         require(msg.sender.balance >=msg.value, "insufficient balance.");                                                                                                                               
 
         totalStakedTokens += msg.value;
+        userInfo[msg.sender].totalStakedAmount += msg.value;
+        userInfo[msg.sender].nodeIds.push(_nodeId);
 
         stakeInfo[msg.sender][_nodeId].stakedAmount = msg.value;
         stakeInfo[msg.sender][_nodeId].staked = true;
+    }
+
+    function unStakeTokens(string memory _nodeId) external whenNotPaused {
+
+        uint256 _stakedAmount = stakeInfo[msg.sender][_nodeId].stakedAmount;
+        
+        require(stakeInfo[msg.sender][_nodeId].staked,"Token didnt staked now.");
+        require(address(this).balance >= _stakedAmount,"Refill Treasuery");
+        
+        (bool success, ) = payable(msg.sender).call{value: _stakedAmount}("");
+        require(success, "Withdrawal failure");
+        
+        userInfo[msg.sender].totalStakedAmount -= _stakedAmount ;
+        totalStakedTokens -= _stakedAmount;
+ 
     }
 
      
@@ -90,6 +113,8 @@ contract StakingContract is Ownable {
             sendRewards.rewardAmount= _rewardAmount;
             sendRewards.rewardPaid = true;
             sendRewards.rewardTransferdTime = block.timestamp;
+            userInfo[msg.sender].totalRewardAmount += _rewardAmount;
+
 
             rewardInfoList.push(sendRewards);
 
@@ -107,7 +132,7 @@ contract StakingContract is Ownable {
     }
 
 
-     function OneMonthInfo(uint256 _startTime, uint256 _endTime) external view returns (RewardInfo[] memory) {
+    function OneMonthInfo(uint256 _startTime, uint256 _endTime) external view returns (RewardInfo[] memory) {
          
         RewardInfo[] memory _rewardInfoList =  new RewardInfo[](rewardInfoList.length);
         
@@ -146,8 +171,22 @@ contract StakingContract is Ownable {
         return(_staked,_stakedAmount,_rewardPaid,_rewardAmount,_rewardTransferdTime);
     }
 
+    function withdrawAmount(uint256 _amount,address _userAddress) external onlyOwner {
+        require(address(this).balance >= _amount, "_amount must be less then Treasury.");
+        (bool success, ) = payable(_userAddress).call{value: _amount}("");
+        require(success, "Withdrawal failure");
+    }
+
     function checkTreasuryBalance() external onlyOwner view returns (uint256) {
         return address(this).balance; 
+    }
+
+    function pause() public onlyOwner {
+        _pause();
+    }
+
+    function unpause() public onlyOwner {
+        _unpause();
     }
 
  
@@ -156,4 +195,3 @@ contract StakingContract is Ownable {
 
     
 }
-// [["xyz","ppp","0x5B38Da6a701c568545dCfcB03FcB875f56beddC4",10000]]
