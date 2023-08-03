@@ -1,12 +1,7 @@
-// Usecase of smart contract 
-// We have to transfer rewards to those who has staked storage. 
-// Storage Nodes can stake Native STOR Tokens and will Get rewarrds 
-// Reward Calculattion will be on WebEnd
-// Will be deployed on Storage chain
-import "hardhat/console.sol";
-//SPDX-License-Identifier: MIT
 
+//SPDX-License-Identifier: MIT
 pragma solidity >= 0.8.19;
+
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -21,6 +16,7 @@ contract StakingContract is Ownable,Pausable {
     struct StakeInfo {
       bool staked;
       uint256 stakedAmount;
+      uint256 lastRewardTransfer;
     }
       
     struct UserRewardInfo {
@@ -49,14 +45,26 @@ contract StakingContract is Ownable,Pausable {
     uint256 public totalStakedTokens;
     
     
+    event StakeEvent(
+        address indexed userAddress,
+        uint256 stakedAmount,
+        uint256 totalStakedAmount,
+        bool tokenStaked
+    );
+    event RewardEvent(
+        address userAddress, 
+        uint256 _rewardAmount,
+        bool _rewairdPaid
+    );
+
+
     function fillTreasury() external payable onlyOwner {
-        
         require(msg.sender.balance >= msg.value, "insufficient balance.");
     }
     
     function stakeTokens(string memory _nodeId) external payable whenNotPaused {
 
-        require(msg.sender.balance >=msg.value, "insufficient balance.");                                                                                                                               
+        require(msg.sender.balance >= msg.value, "insufficient balance.");                                                                                                                               
 
         totalStakedTokens += msg.value;
         userInfo[msg.sender].totalStakedAmount += msg.value;
@@ -64,20 +72,37 @@ contract StakingContract is Ownable,Pausable {
 
         stakeInfo[msg.sender][_nodeId].stakedAmount = msg.value;
         stakeInfo[msg.sender][_nodeId].staked = true;
+
+        emit StakeEvent(
+            msg.sender, 
+            stakeInfo[msg.sender][_nodeId].stakedAmount,
+            userInfo[msg.sender].totalStakedAmount,
+            stakeInfo[msg.sender][_nodeId].staked
+        );
     }
 
     function unStakeTokens(string memory _nodeId) external whenNotPaused {
 
         uint256 _stakedAmount = stakeInfo[msg.sender][_nodeId].stakedAmount;
         
-        require(stakeInfo[msg.sender][_nodeId].staked,"Token didnt staked now.");
+        require(stakeInfo[msg.sender][_nodeId].staked,"Token didnt staked.");
         require(address(this).balance >= _stakedAmount,"Refill Treasuery");
+        
+        userInfo[msg.sender].totalStakedAmount -= _stakedAmount ;
+        stakeInfo[msg.sender][_nodeId].stakedAmount = 0;
+        stakeInfo[msg.sender][_nodeId].staked = false;
+        totalStakedTokens -= _stakedAmount;
         
         (bool success, ) = payable(msg.sender).call{value: _stakedAmount}("");
         require(success, "Withdrawal failure");
         
-        userInfo[msg.sender].totalStakedAmount -= _stakedAmount ;
-        totalStakedTokens -= _stakedAmount;
+
+        emit StakeEvent(
+            msg.sender, 
+            _stakedAmount,
+            userInfo[msg.sender].totalStakedAmount,
+            stakeInfo[msg.sender][_nodeId].staked
+        );
  
     }
 
@@ -92,18 +117,23 @@ contract StakingContract is Ownable,Pausable {
         }
         
         require(address(this).balance >= totalReward,"Please Fill Treasuery.");
+        
         for (uint i =0;  i < sendReward.length; i++) {
         
             string memory _nodeId = sendReward[i].nodeId;
             string memory _rewardId = sendReward[i].rewardId;
             uint256 _rewardAmount = sendReward[i].rewardAmount;
             address _userAddress = sendReward[i].userAddress;
-            uint256 _amount = sendReward[i].rewardAmount;
-
+            uint256 _lastRewardTransfer = stakeInfo[_userAddress][_nodeId].lastRewardTransfer;
+            
+            require(block.timestamp > _lastRewardTransfer + 5 minutes, // change it in months
+                    "This user get reward before Time");
 
             userRewardInfo[_rewardId].rewardPaid = true;
-            userRewardInfo[_rewardId].rewardAmount = _amount; 
+            userRewardInfo[_rewardId].rewardAmount = _rewardAmount; 
             userRewardInfo[_rewardId].rewardTransferdTime = block.timestamp;
+            userInfo[msg.sender].totalRewardAmount += _rewardAmount;
+            stakeInfo[msg.sender][_nodeId].lastRewardTransfer = block.timestamp; 
 
             RewardInfo memory sendRewards;
 
@@ -113,24 +143,22 @@ contract StakingContract is Ownable,Pausable {
             sendRewards.rewardAmount= _rewardAmount;
             sendRewards.rewardPaid = true;
             sendRewards.rewardTransferdTime = block.timestamp;
-            userInfo[msg.sender].totalRewardAmount += _rewardAmount;
 
 
             rewardInfoList.push(sendRewards);
 
             (bool success, ) = payable(_userAddress).call{value: _rewardAmount}("");
             require(success, "Withdrawal failure");
+
+            emit RewardEvent(
+                _userAddress,
+                _rewardAmount,
+                sendRewards.rewardPaid
+            );
         }
 
         return rewardInfoList.length;
-       
     }
-
-
-    function list() external view returns (RewardInfo[] memory) {
-        return rewardInfoList;
-    }
-
 
     function OneMonthInfo(uint256 _startTime, uint256 _endTime) external view returns (RewardInfo[] memory) {
          
@@ -179,6 +207,14 @@ contract StakingContract is Ownable,Pausable {
 
     function checkTreasuryBalance() external onlyOwner view returns (uint256) {
         return address(this).balance; 
+    }
+    
+    function getNodeIds(address _userAddress) external view returns (string[] memory) {
+        return userInfo[_userAddress].nodeIds;
+    }
+    
+    function list() external view returns (RewardInfo[] memory) {
+        return rewardInfoList;
     }
 
     function pause() public onlyOwner {
