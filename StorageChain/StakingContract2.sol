@@ -1,12 +1,15 @@
 
 //SPDX-License-Identifier: MIT
-pragma solidity >= 0.8.19;
+pragma solidity ^0.8.19;
 
-import "@openzeppelin/contracts/security/Pausable.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 
-contract StakingContract is Ownable,Pausable {
+
+contract StakingContract is Initializable, PausableUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
     
     struct UserInfo {
       string[] nodeIds;
@@ -57,9 +60,26 @@ contract StakingContract is Ownable,Pausable {
         bool _rewairdPaid
     );
 
+    event Transfered(
+      address indexed sender,
+       uint256 value
+    );
+
+
+     constructor() {
+        _disableInitializers();
+    }
+
+    function initialize() initializer public {
+        __Pausable_init();
+        __Ownable_init();
+        __UUPSUpgradeable_init();
+    }
+
 
     function fillTreasury() external payable onlyOwner {
         require(msg.sender.balance >= msg.value, "insufficient balance.");
+        emit Transfered(msg.sender, msg.value);
     }
     
     function stakeTokens(string memory _nodeId) external payable whenNotPaused {
@@ -106,11 +126,11 @@ contract StakingContract is Ownable,Pausable {
  
     }
 
-     
 
     function transferRewards(RewardInfo[] memory sendReward) external onlyOwner returns(uint256){
     
         uint256 totalReward;
+
         
         for (uint i =0;  i < sendReward.length; i++){
             totalReward += sendReward[i].rewardAmount;
@@ -126,14 +146,15 @@ contract StakingContract is Ownable,Pausable {
             address _userAddress = sendReward[i].userAddress;
             uint256 _lastRewardTransfer = stakeInfo[_userAddress][_nodeId].lastRewardTransfer;
             
+            require(stakeInfo[_userAddress][_nodeId].staked,"Token didnt staked.");
             require(block.timestamp > _lastRewardTransfer + 5 minutes, // change it in months
                     "This user get reward before Time");
 
             userRewardInfo[_rewardId].rewardPaid = true;
             userRewardInfo[_rewardId].rewardAmount = _rewardAmount; 
             userRewardInfo[_rewardId].rewardTransferdTime = block.timestamp;
-            userInfo[msg.sender].totalRewardAmount += _rewardAmount;
-            stakeInfo[msg.sender][_nodeId].lastRewardTransfer = block.timestamp; 
+            userInfo[_userAddress].totalRewardAmount += _rewardAmount;
+            stakeInfo[_userAddress][_nodeId].lastRewardTransfer = block.timestamp; 
 
             RewardInfo memory sendRewards;
 
@@ -213,9 +234,14 @@ contract StakingContract is Ownable,Pausable {
         return userInfo[_userAddress].nodeIds;
     }
     
-    function list() external view returns (RewardInfo[] memory) {
+    function GetRewardInfoListlist() external view returns (RewardInfo[] memory) {
         return rewardInfoList;
     }
+
+    function GetRewardInfoListlistLength() external view returns (uint256) {
+        return rewardInfoList.length;
+    }
+
 
     function pause() public onlyOwner {
         _pause();
@@ -225,9 +251,39 @@ contract StakingContract is Ownable,Pausable {
         _unpause();
     }
 
+    function _authorizeUpgrade(address newImplementation)
+        internal
+        onlyOwner
+        override
+    {}
+
  
     receive() external payable {
+      emit Transfered(msg.sender, msg.value);
     }
 
     
 }
+
+//0x5B38Da6a701c568545dCfcB03FcB875f56beddC4 
+// aaa => aa
+// bbb => bb
+// ccc => cc
+
+//0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2 
+// sss => ss
+// ddd => dd
+// fff => ff
+
+//0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db 
+// eee => ee
+// rrr => rr
+// ttt => tt
+
+
+//0x78731D3Ca6b7E34aC0F824c42a7cC18A495cabaB 
+// mmm => mm
+// nnn => nn
+// yyy => yy
+
+// [[“aaa”,“aa”,“0x5B38Da6a701c568545dCfcB03FcB875f56beddC4”,1000000000000000000,true,22],[“bbb”,“bb”,“0x5B38Da6a701c568545dCfcB03FcB875f56beddC4”,1000000000000000000,true,22],[“sss”,“ss”,“0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2”,1000000000000000000,true,22]]
