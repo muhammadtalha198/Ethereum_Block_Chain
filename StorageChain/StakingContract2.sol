@@ -49,6 +49,7 @@ contract StakingContract is Initializable, PausableUpgradeable, OwnableUpgradeab
     
     
     event StakeEvent(
+        string  nodeId,
         address indexed userAddress,
         uint256 stakedAmount,
         uint256 totalStakedAmount,
@@ -94,6 +95,7 @@ contract StakingContract is Initializable, PausableUpgradeable, OwnableUpgradeab
         stakeInfo[msg.sender][_nodeId].staked = true;
 
         emit StakeEvent(
+            _nodeId,
             msg.sender, 
             stakeInfo[msg.sender][_nodeId].stakedAmount,
             userInfo[msg.sender].totalStakedAmount,
@@ -118,6 +120,7 @@ contract StakingContract is Initializable, PausableUpgradeable, OwnableUpgradeab
         
 
         emit StakeEvent(
+            _nodeId,
             msg.sender, 
             _stakedAmount,
             userInfo[msg.sender].totalStakedAmount,
