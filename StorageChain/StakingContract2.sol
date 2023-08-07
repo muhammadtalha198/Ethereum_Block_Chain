@@ -20,6 +20,7 @@ contract StakingContract is Initializable, PausableUpgradeable, OwnableUpgradeab
       bool staked;
       uint256 stakedAmount;
       uint256 lastRewardTransfer;
+      string[] rewardIds;
     }
       
     struct UserRewardInfo {
@@ -86,6 +87,7 @@ contract StakingContract is Initializable, PausableUpgradeable, OwnableUpgradeab
     function stakeTokens(string memory _nodeId) external payable whenNotPaused {
 
         require(msg.sender.balance >= msg.value, "insufficient balance.");                                                                                                                               
+        require(!isNodeIdStaked(msg.sender, _nodeId), "nodeId already staked.");
 
         totalStakedTokens += msg.value;
         userInfo[msg.sender].totalStakedAmount += msg.value;
@@ -101,6 +103,18 @@ contract StakingContract is Initializable, PausableUpgradeable, OwnableUpgradeab
             userInfo[msg.sender].totalStakedAmount,
             stakeInfo[msg.sender][_nodeId].staked
         );
+    }
+
+    function isNodeIdStaked(address userAddress, string memory _nodeId) internal view returns (bool) {
+        string[] memory nodeIds = userInfo[userAddress].nodeIds;
+        uint256 idsLength = nodeIds.length;
+
+        for (uint256 i = 0; i < idsLength; i++) {
+            if (keccak256(bytes(nodeIds[i])) == keccak256(bytes(_nodeId))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     function unStakeTokens(string memory _nodeId) external whenNotPaused {
@@ -132,15 +146,14 @@ contract StakingContract is Initializable, PausableUpgradeable, OwnableUpgradeab
 
     function transferRewards(RewardInfo[] memory sendReward) external onlyOwner returns(uint256){
     
-        uint256 totalReward;
 
+        uint256 totalReward;
         
         for (uint i =0;  i < sendReward.length; i++){
             totalReward += sendReward[i].rewardAmount;
         }
         
         require(address(this).balance >= totalReward,"Please Fill Treasuery.");
-        
         for (uint i =0;  i < sendReward.length; i++) {
         
             string memory _nodeId = sendReward[i].nodeId;
@@ -150,6 +163,7 @@ contract StakingContract is Initializable, PausableUpgradeable, OwnableUpgradeab
             uint256 _lastRewardTransfer = stakeInfo[_userAddress][_nodeId].lastRewardTransfer;
             
             require(stakeInfo[_userAddress][_nodeId].staked,"Token didnt staked.");
+            require(!isRewardIdAdded(_userAddress, _nodeId, _rewardId), "please use different rewardId.");
             require(block.timestamp > _lastRewardTransfer + 5 minutes, // change it in months
                     "This user get reward before Time");
 
@@ -158,6 +172,7 @@ contract StakingContract is Initializable, PausableUpgradeable, OwnableUpgradeab
             userRewardInfo[_rewardId].rewardTransferdTime = block.timestamp;
             userInfo[_userAddress].totalRewardAmount += _rewardAmount;
             stakeInfo[_userAddress][_nodeId].lastRewardTransfer = block.timestamp; 
+            stakeInfo[_userAddress][_nodeId].rewardIds.push(_rewardId); 
 
             RewardInfo memory sendRewards;
 
@@ -182,6 +197,18 @@ contract StakingContract is Initializable, PausableUpgradeable, OwnableUpgradeab
         }
 
         return rewardInfoList.length;
+    }
+
+    function isRewardIdAdded(address userAddress, string memory _nodeId, string memory _rewardId) internal view returns (bool) {
+        string[] memory rewardIds = stakeInfo[userAddress][_nodeId].rewardIds;
+        uint256 idsLength = rewardIds.length;
+
+        for (uint256 i = 0; i < idsLength; i++) {
+            if (keccak256(bytes(rewardIds[i])) == keccak256(bytes(_rewardId))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     function OneMonthInfo(uint256 _startTime, uint256 _endTime) external view returns (RewardInfo[] memory) {
@@ -236,6 +263,10 @@ contract StakingContract is Initializable, PausableUpgradeable, OwnableUpgradeab
     function getNodeIds(address _userAddress) external view returns (string[] memory) {
         return userInfo[_userAddress].nodeIds;
     }
+
+    function getRewardIds(address _userAddress, string memory _nodeId) external view returns (string[] memory) {
+        return stakeInfo[_userAddress][_nodeId].rewardIds;
+    }
     
     function GetRewardInfoListlist() external view returns (RewardInfo[] memory) {
         return rewardInfoList;
@@ -289,4 +320,5 @@ contract StakingContract is Initializable, PausableUpgradeable, OwnableUpgradeab
 // nnn => nn
 // yyy => yy
 
-// [[“aaa”,“aa”,“0x5B38Da6a701c568545dCfcB03FcB875f56beddC4”,1000000000000000000,true,22],[“bbb”,“bb”,“0x5B38Da6a701c568545dCfcB03FcB875f56beddC4”,1000000000000000000,true,22],[“sss”,“ss”,“0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2”,1000000000000000000,true,22]]
+// [[“sss”,“ss”,“0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2”,1000000000000000000,true,22],[“eee”,“ee”,“0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db”,1000000000000000000,true,22],[“sss”,“ss”,“0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2”,1000000000000000000,true,22]]
+// [[“sss”,“ss”,“0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2”,1000000000000000000,true,22],[“eee”,“ee”,“0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db”,1000000000000000000,true,22]]
