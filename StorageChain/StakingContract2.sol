@@ -79,7 +79,7 @@ contract StakingContract is Initializable, PausableUpgradeable, OwnableUpgradeab
     }
 
 
-    function fillTreasury() external payable onlyOwner {
+    function fillTreasury() external payable {
         require(msg.sender.balance >= msg.value, "insufficient balance.");
         emit Transfered(msg.sender, msg.value);
     }
@@ -87,6 +87,7 @@ contract StakingContract is Initializable, PausableUpgradeable, OwnableUpgradeab
     function stakeTokens(string memory _nodeId) external payable whenNotPaused {
 
         require(msg.sender.balance >= msg.value, "insufficient balance.");                                                                                                                               
+        require(msg.value > 50 wei, "stakeAmount must be greater then 50 wei.");                                                                                                                            
         require(!isNodeIdStaked(msg.sender, _nodeId), "nodeId already staked.");
 
         totalStakedTokens += msg.value;
@@ -256,7 +257,7 @@ contract StakingContract is Initializable, PausableUpgradeable, OwnableUpgradeab
         require(success, "Withdrawal failure");
     }
 
-    function checkTreasuryBalance() external onlyOwner view returns (uint256) {
+    function checkTreasuryBalance() external view returns (uint256) {
         return address(this).balance; 
     }
     
