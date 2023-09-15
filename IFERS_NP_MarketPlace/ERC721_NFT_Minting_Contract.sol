@@ -1,4 +1,3 @@
-
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
@@ -7,10 +6,9 @@ import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721BurnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
 
-contract MyToken is Initializable, ERC721Upgradeable, PausableUpgradeable, OwnableUpgradeable, ERC721BurnableUpgradeable, UUPSUpgradeable {
+contract MyToken is Initializable, ERC721Upgradeable, PausableUpgradeable, OwnableUpgradeable, ERC721BurnableUpgradeable {
     using CountersUpgradeable for CountersUpgradeable.Counter;
 
     CountersUpgradeable.Counter private _tokenIdCounter;
@@ -25,11 +23,10 @@ contract MyToken is Initializable, ERC721Upgradeable, PausableUpgradeable, Ownab
         __Pausable_init();
         __Ownable_init();
         __ERC721Burnable_init();
-        __UUPSUpgradeable_init();
     }
 
     function _baseURI() internal pure override returns (string memory) {
-        return "https";
+        return "https://gateway.pinata.cloud/ipfs/QmTReGQSV7ReU7HMTVhXj7rZ6AiiKx9xcAY15WjALercih/";
     }
 
     function pause() public onlyOwner {
@@ -53,10 +50,4 @@ contract MyToken is Initializable, ERC721Upgradeable, PausableUpgradeable, Ownab
     {
         super._beforeTokenTransfer(from, to, tokenId, batchSize);
     }
-
-    function _authorizeUpgrade(address newImplementation)
-        internal
-        onlyOwner
-        override
-    {}
 }
