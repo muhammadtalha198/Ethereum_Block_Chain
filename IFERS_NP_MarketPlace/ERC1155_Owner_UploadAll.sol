@@ -1,4 +1,3 @@
-
 /*
 
     In case owner is minting by him self then sale them 
@@ -17,18 +16,28 @@ import "@openzeppelin/contracts-upgradeable/token/ERC1155/extensions/ERC1155Burn
 import "@openzeppelin/contracts-upgradeable/token/ERC1155/extensions/ERC1155SupplyUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
+
 
 contract MyToken is Initializable, ERC1155Upgradeable, OwnableUpgradeable, PausableUpgradeable, ERC1155BurnableUpgradeable, ERC1155SupplyUpgradeable, UUPSUpgradeable {
     
-    CountersUpgradeable.Counter private _tokenIdCounter;
+    string public name;
+    string public symbol;
+    uint256 public tokenId;
+    uint256 public mintingPrice;
+
+    mapping(address => uint256[]) private userTokenIds;
     
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
 
-    function initialize() initializer public {
+    function initialize(string memory _name, string memory _symbol, uint256 _mintingPrice) initializer public {
+
+        name = _name;
+        symbol = _symbol;
+        mintingPrice = _mintingPrice;
+
         __ERC1155_init("https://ipfs.io/ipfs/QmTqdUbVkaNfie3YvJK4J7j2nErtMCkxwEfK7KzedFSpMs/");
         __Ownable_init();
         __Pausable_init();
@@ -37,18 +46,40 @@ contract MyToken is Initializable, ERC1155Upgradeable, OwnableUpgradeable, Pausa
         __UUPSUpgradeable_init();
     }
 
-    function mint(address account, uint256 id, uint256 amount, bytes memory data) public onlyOwner {
-         uint256 tokenId = _tokenIdCounter.current();
-        _tokenIdCounter.increment();
-        _mint(account, id, amount, data);
+    function mint(uint256 amount) external payable  {
+
+        if(msg.sender != owner()){
+            require(msg.value == mintingPrice, "please put the right amount of price.");
+        }
+        
+        tokenId++;
+        _mint(msg.sender, tokenId, amount, "0x00");
+        userTokenIds[msg.sender].push(tokenId);
     }
 
-    function mintBatch(address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data) public onlyOwner{
-        _mintBatch(to, ids, amounts, data);
+    function mintBatch(uint256 noOfTokens, uint256[] memory _noOfCopies) external payable {
+
+        uint256[] memory tokenids = new uint256[](noOfTokens);
+        
+        for (uint256 i = 0; i < noOfTokens; i++) {
+             
+            tokenids[i]= tokenId;
+            userTokenIds[msg.sender].push(tokenId);
+            
+            tokenId++;
+        }
+
+        _mintBatch(msg.sender, tokenids, _noOfCopies, "0x00");
     }
     
     function setURI(string memory newuri) public onlyOwner {
         _setURI(newuri);
+    }
+
+    function withdrawAmount() external onlyOwner {
+
+        (bool success, ) = payable(msg.sender).call{value: address(this).balance}("");
+            require(success, "Withdrawal failure");
     }
 
     function pause() public onlyOwner {
@@ -58,7 +89,6 @@ contract MyToken is Initializable, ERC1155Upgradeable, OwnableUpgradeable, Pausa
     function unpause() public onlyOwner {
         _unpause();
     }
-
 
     function _beforeTokenTransfer(address operator, address from, address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data)
         internal
