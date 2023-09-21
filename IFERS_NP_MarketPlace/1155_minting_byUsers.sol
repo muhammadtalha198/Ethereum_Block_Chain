@@ -15,7 +15,13 @@ contract MyToken is Initializable, ERC1155Upgradeable, OwnableUpgradeable, Pausa
     uint256 public tokenId;
     uint256 public mintingPrice;
 
-    mapping(uint256 => string) private _tokenURIs;
+    struct MinterInfo{
+        string _tokenURIs;
+        uint256 royaltyPercentage;
+        address royaltyReceiver;
+    }
+
+    mapping (uint256 => MinterInfo) public minterInfo;
     mapping(address => uint256[]) private userTokenIds;
 
     event Mints(address minter,uint256 tokenid,uint256 amount,string tokenUri);
@@ -43,9 +49,11 @@ contract MyToken is Initializable, ERC1155Upgradeable, OwnableUpgradeable, Pausa
     }
 
 
-    function mint(uint256 _noOfCopies,string memory _uri) external payable {
-         require(bytes(_uri).length > 0, "tokenuri cannot be empty");
-         require(_noOfCopies > 0, "_noOfCopies cannot be zero");
+    function mint(uint256 _noOfCopies,string memory _uri, uint256 _royaltyFeePercentage) external payable {
+         
+        require(bytes(_uri).length > 0, "tokenuri cannot be empty");
+        require(_noOfCopies > 0, "_noOfCopies cannot be zero");
+        require(_royaltyFeePercentage > 0  && _royaltyFeePercentage <= 1000 , "_royaltyFeePercentage must be between 1 to 10");
         
         if(msg.sender != owner()){
             require(msg.value == mintingPrice, "please put the right amount of price.");
@@ -54,6 +62,10 @@ contract MyToken is Initializable, ERC1155Upgradeable, OwnableUpgradeable, Pausa
         _mint(msg.sender, tokenId, _noOfCopies, "0x00");
         _setURI(tokenId, _uri);
         userTokenIds[msg.sender].push(tokenId);
+
+        minterInfo[tokenId].royaltyPercentage = _royaltyFeePercentage;
+        minterInfo[tokenId].royaltyReceiver = msg.sender;
+            
         
         tokenId++;
         
@@ -61,7 +73,7 @@ contract MyToken is Initializable, ERC1155Upgradeable, OwnableUpgradeable, Pausa
     }
 
 
-    function mintBatch(uint256 noOfTokens, uint256[] memory _noOfCopies,string[] memory _tokenUris) external payable {
+    function mintBatch(uint256 noOfTokens, uint256[] memory _noOfCopies,string[] memory _tokenUris,uint256[] memory _royaltyFeePercentage) external payable {
         
         require(_tokenUris.length > 0, "tokenUris cannot be empty"); 
         require(_noOfCopies.length > 0, "amounts cannot be empty"); 
@@ -76,10 +88,14 @@ contract MyToken is Initializable, ERC1155Upgradeable, OwnableUpgradeable, Pausa
         
         for (uint256 i = 0; i < noOfTokens; i++) {
              
+             require(_royaltyFeePercentage[i] > 0  && _royaltyFeePercentage[i] <= 1000 , "_royaltyFeePercentage must be between 1 to 10");
             
             tokenids[i]= tokenId;
             _setURI(tokenId, _tokenUris[i]);
             userTokenIds[msg.sender].push(tokenId);
+
+            minterInfo[tokenId].royaltyPercentage = _royaltyFeePercentage[i];
+            minterInfo[tokenId].royaltyReceiver = msg.sender;
             
             tokenId++;
         }
@@ -90,13 +106,13 @@ contract MyToken is Initializable, ERC1155Upgradeable, OwnableUpgradeable, Pausa
     }
     
     function withdrawAmount() external onlyOwner {
-
+        require(address(this).balance > 0, "eth balance must be greater then zero.");
         (bool success, ) = payable(msg.sender).call{value: address(this).balance}("");
             require(success, "Withdrawal failure");
     }
 
     function _setURI(uint256 _tokenId,string memory newuri) private {
-        _tokenURIs[_tokenId] = newuri;
+       minterInfo[_tokenId]._tokenURIs = newuri;
     }
     
     function setMintingPrice(uint256 _mintingPrice) external onlyOwner {
@@ -105,13 +121,22 @@ contract MyToken is Initializable, ERC1155Upgradeable, OwnableUpgradeable, Pausa
     
     function uri(uint256 _tokenId) public view override returns (string memory) {
 
-        string memory currentBaseURI = _tokenURIs[_tokenId];
+        string memory currentBaseURI = minterInfo[_tokenId]._tokenURIs;
         return string(abi.encodePacked(currentBaseURI));
-
     }
 
     function getUserTokenIds(address user) external view returns (uint256[] memory) {
         return userTokenIds[user];
+    }
+
+    function getRoyaltyFeepercentages(uint256 _tokenId) external view returns (uint256 _royaltyfee)
+    {
+        return minterInfo[_tokenId].royaltyPercentage;
+    }
+
+    function getetRoyaltyReceivers(uint256 _tokenid) external view returns(address reciver)
+    {
+        return minterInfo[_tokenid].royaltyReceiver;
     }
 
     function pause() public onlyOwner {
