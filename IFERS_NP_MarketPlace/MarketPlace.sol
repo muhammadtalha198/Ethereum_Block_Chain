@@ -65,6 +65,12 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         uint256 donatePercentage;
     }
 
+    struct FiscalSponsor{
+        bool haveFiscalSponsor;
+        uint256 serviceFee;
+        address sponserAddress;
+    }
+
     struct Auction{   
 
         bool isSold;
@@ -82,11 +88,22 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         address currentBidder;
     }
 
-
     mapping (uint256 => Auction) public auction;
     mapping (uint256 => FixedPrice) public fixedPrice;
     mapping (uint256 => DonationInfo) public donationInfo;
+    mapping (address => FiscalSponsor) public fiscalSponsor;
 
+    function setFiscalSponsor(uint256 _fiscalSponserFee) external view {
+        
+        require(_fiscalSponserFee >= 500 && _fiscalSponserFee <= 10000,
+            "donation percentage must be between 5 to 100");
+
+         require(msg.sender == fiscalSponsor[msg.sender].sponserAddress,
+            "Only fiscalSponsor can change their serviceFee");   
+
+
+
+    }
 
     function listItemForFixedPrice(
         uint256 _tokenId,
@@ -101,7 +118,7 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
     ) external  whenNotPaused OnlyTokenHolders (_tokenId , _nftAddress) returns(uint256) {
         
 
-        require(_donatePercentage >= 500 && _donatePercentage <= 1000,
+        require(_donatePercentage >= 500 && _donatePercentage <= 10000,
             "donation percentage must be between 5 to 100");
         
         require(_organizationOne != address(0) || _organizationTwo != address(0) 
@@ -169,7 +186,7 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
     ) external   whenNotPaused OnlyTokenHolders(_tokenId , _nftAddress) returns(uint256){
         
 
-        require(_donatePercentage >= 500 && _donatePercentage <= 1000,
+        require(_donatePercentage >= 500 && _donatePercentage <= 10000,
             "donation percentage must be between 5 to 100");
         
         require(_organizationOne != address(0) || _organizationTwo != address(0) 
@@ -462,11 +479,12 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         
     }
 
-    function setPlatFormServiceFeePercentage(uint256 _platFormServiceFeePercentage) public onlyOwner returns(uint256){
-        require( _platFormServiceFeePercentage >=100  && _platFormServiceFeePercentage <= 1000, 
+
+    function setPlatFormServiceFeePercentage(uint256 _serviceFeePercentage) external onlyOwner returns(uint256){
+        require( _serviceFeePercentage >=100  && _serviceFeePercentage <= 1000, 
             "fee % must between in 1% to 10% ");
 
-        serviceFeePercentage = _platFormServiceFeePercentage;
+        serviceFeePercentage = _serviceFeePercentage;
         return serviceFeePercentage;
     }
 
