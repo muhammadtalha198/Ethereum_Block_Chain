@@ -88,26 +88,26 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
     mapping (uint256 => FixedPrice) public fixedPrice;
     mapping (uint256 => DonationInfo) public donationInfo;
 
-    enum UserType{ ORGANIZATION, FISCALSPONSER, FISCALSPONSER_ORGANIZATION }
+    bool[] againstOne;
 
-    mapping (address => UserType) public isApproved;
+    mapping (address => bool) public isApproved;
    
 
-    function organisationApproval(address _organizationAddress, UserType choice) public  onlyOwner returns(bool){
-       isApproved[_organizationAddress] = choice;
-       return true;
-    }
+    // function organisationApproval(address _organizationAddress) public  onlyOwner returns(bool){
+    // //    isApproved[_organizationAddress] = choice;
+    //    return true;
+    // }
     
     
-    function setFiscalSponsor(uint256 _fiscalSponserFee, UserType choice ) external view {
+    // function setFiscalSponsor(uint256 _fiscalSponserFee, UserType choice ) external view {
 
-        require(isApproved[msg.sender] == choice, "You are not a fiscal sponser of ");
+    //     require(isApproved[msg.sender] == choice, "You are not a fiscal sponser of ");
         
-        require(_fiscalSponserFee >= 500 && _fiscalSponserFee <= 10000,
-            "donation percentage must be between 5 to 100");
+    //     require(_fiscalSponserFee >= 500 && _fiscalSponserFee <= 10000,
+    //         "donation percentage must be between 5 to 100");
  
 
-    }
+    // }
 
     function listItemForFixedPrice(
         uint256 _tokenId,
