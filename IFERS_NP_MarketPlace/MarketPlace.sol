@@ -41,7 +41,7 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
 
         __Pausable_init();
-        __Ownable_init();
+        __Ownable_init(msg.sender);
         __UUPSUpgradeable_init();
     }
 
@@ -93,6 +93,20 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
     mapping (uint256 => DonationInfo) public donationInfo;
     mapping (address => FiscalSponsor) public fiscalSponsor;
 
+    mapping (address => bool) public isNPOrganozation;
+    mapping (address => bool) public isFiscalSponsor;
+
+    function approveNonProfitOrganization(address _organizationAddress) public  onlyOwner returns(bool){
+        return isNPOrganozation[_organizationAddress] = true;
+    }
+
+    function approveFiscalSponsor(address _fiscalSponsorAddress) public  onlyOwner returns(bool){
+        isNPOrganozation[_fiscalSponsorAddress] = true;
+        return isFiscalSponsor[_fiscalSponsorAddress] = true;
+    }
+
+    
+    
     function setFiscalSponsor(uint256 _fiscalSponserFee) external view {
         
         require(_fiscalSponserFee >= 500 && _fiscalSponserFee <= 10000,
@@ -100,8 +114,6 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
          require(msg.sender == fiscalSponsor[msg.sender].sponserAddress,
             "Only fiscalSponsor can change their serviceFee");   
-
-
 
     }
 
@@ -113,9 +125,14 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         address _organizationOne,
         address _organizationTwo,
         address _organizationThree,
-        uint256 _donatePercentage
+        uint256 _donatePercentage,
+        address _fiscalSponser
 
     ) external  whenNotPaused OnlyTokenHolders (_tokenId , _nftAddress) returns(uint256) {
+
+        if(isFiscalSponsor[_fiscalSponser]){
+            require(isFiscalSponsor[_fiscalSponser],"Please enter the right address of fiscal sponser.");
+        }
         
 
         require(_donatePercentage >= 500 && _donatePercentage <= 10000,
@@ -535,4 +552,3 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
 
 }
-
