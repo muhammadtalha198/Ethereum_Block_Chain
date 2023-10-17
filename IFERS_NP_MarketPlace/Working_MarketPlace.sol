@@ -58,15 +58,6 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
     }
 
-    struct DonationInfo{
-        address organizationOne;
-        address organizationTwo;
-        address organizationThree;
-        uint256 donatePercentage;
-    }
-
-
-
     struct Auction{   
 
         bool isSold;
@@ -84,30 +75,46 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         address currentBidder;
     }
 
+    struct DonationInfo{
+        address organizationOne;
+        address organizationTwo;
+        address organizationThree;
+        uint256 donatePercentage;
+    }
+
+    struct ApprovedOrganization{
+        
+        bool approved;
+        uint256 feePercentage;
+        address fiscalSponsor;
+
+    }
+
     mapping (uint256 => Auction) public auction;
     mapping (uint256 => FixedPrice) public fixedPrice;
     mapping (uint256 => DonationInfo) public donationInfo;
 
-    bool[] againstOne;
-
-    mapping (address => bool) public isApproved;
+    mapping(address => bool) public approvedFiscalSponsor;
+    mapping(address => ApprovedOrganization) public approvedOrganization;
    
 
-    // function organisationApproval(address _organizationAddress) public  onlyOwner returns(bool){
-    // //    isApproved[_organizationAddress] = choice;
-    //    return true;
-    // }
-    
-    
-    // function setFiscalSponsor(uint256 _fiscalSponserFee, UserType choice ) external view {
+    function fiscalSponsorApproval(address _organizationAddress) public onlyOwner returns(bool){
+       return approvedFiscalSponsor[_organizationAddress] = true;
+    }
 
-    //     require(isApproved[msg.sender] == choice, "You are not a fiscal sponser of ");
+    function organisationApproval(address _organizationAddress, uint256 _feePercentage) public onlyOwner returns(bool){
         
-    //     require(_fiscalSponserFee >= 500 && _fiscalSponserFee <= 10000,
-    //         "donation percentage must be between 5 to 100");
- 
+        require(approvedFiscalSponsor[msg.sender],"Only Fiscal Sponsor will approve Organizations.");
+        require(_feePercentage >= 100 && _feePercentage <= 10000,
+            "donation percentage must be between 5 to 100");
 
-    // }
+        approvedOrganization[_organizationAddress].approved = true;
+        approvedOrganization[_organizationAddress].feePercentage = _feePercentage;
+        approvedOrganization[_organizationAddress].fiscalSponsor = msg.sender;
+
+        return true;
+    }
+    
 
     function listItemForFixedPrice(
         uint256 _tokenId,
@@ -117,27 +124,23 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         address _organizationOne,
         address _organizationTwo,
         address _organizationThree,
-        uint256 _donatePercentage,
-        address _fiscalSponser
-
+        uint256 _donatePercentage
     ) external  whenNotPaused OnlyTokenHolders (_tokenId , _nftAddress) returns(uint256) {
-
-        // if(isFiscalSponsor[_fiscalSponser]){
-        //     require(isFiscalSponsor[_fiscalSponser],"Please enter the right address of fiscal sponser.");
-        // }
-        
-
-        require(_donatePercentage >= 500 && _donatePercentage <= 10000,
-            "donation percentage must be between 5 to 100");
-        
-        require(_organizationOne != address(0) || _organizationTwo != address(0) 
-            || _organizationThree != address(0), 
-            "You must have to chose atleast one organization.");
 
         require(_tokenId >= 0,"No Negative number is allowed");
         require(_noOfCopies > 0,"nft amount can't be zero");
         require(_price > 0,"price can not be 0");
         require(_nftAddress != address(0),"Invalid NFT Address");
+        
+        require(_donatePercentage >= 500 && _donatePercentage <= 10000,
+            "donation percentage must be between 5 to 100");
+
+        if(!approvedOrganization[msg.sender].approved){
+            require(_organizationOne != address(0) || _organizationTwo != address(0) 
+                || _organizationThree != address(0), 
+                "You must have to chose atleast one organization.");
+        }
+        
 
         fixedPriceId++;
 
