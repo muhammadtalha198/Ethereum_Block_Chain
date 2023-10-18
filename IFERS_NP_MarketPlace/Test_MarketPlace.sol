@@ -340,6 +340,12 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
     ) external   whenNotPaused OnlyTokenHolders(_tokenId , _nftAddress) returns(uint256){
         
+        require(_initialPrice > 0 , "intial price can't be zero.");
+        require(_tokenId >= 0 , "tokenid can't be negative.");
+        require(_numberofcopies > 0 , "0 amount can't be listed.");
+        require(_nftAddress != address(0), "Invalid address.");
+        require(_auctionStartTime >= block.timestamp && _auctionEndTime > block.timestamp ,
+         "startTime and end time must be greater then currentTime");
 
         require(_donatePercentage >= 500 && _donatePercentage <= 10000,
             "donation percentage must be between 5 to 100");
@@ -350,12 +356,6 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
                 "You must have to chose atleast one organization.");
         }
 
-        require(_initialPrice > 0 , "intial price can't be zero.");
-        require(_tokenId >= 0 , "tokenid can't be negative.");
-        require(_numberofcopies > 0 , "0 amount can't be listed.");
-        require(_nftAddress != address(0), "Invalid address.");
-        require(_auctionStartTime >= block.timestamp && _auctionEndTime > block.timestamp ,
-         "startTime and end time must be greater then currentTime");
         
 
         auctionId++;
@@ -450,58 +450,6 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
     }
 
-    
-
-    function auctionEnd(uint256 _auctionId) external {
-        
-        require(_auctionId > 0,"inavlid auction id");
-        require(msg.sender == auction[_auctionId].nftOwner ,
-                "Only the seller of NFT can end this auction");
-        require(!auction[_auctionId].isSold,"You have already ended the auction");
-        require(!auction[_auctionId].nftClaimed,"Higiest bidder already claimed the nft.");
-        
-        uint256 serviceFee = calulateFee(auction[_auctionId].initialPrice, serviceFeePercentage);
-
-        if(mintingContractAddress == auction[_auctionId].nftAddress){
-
-            address _royaltyReciver = mintingContract.getRoyaltyReceiver(
-                auction[_auctionId].tokenId
-            );
-            uint256 _royaltyPercentage = mintingContract.getRoyaltyFeepercentage(
-                auction[_auctionId].tokenId
-            );
-
-            uint256 royaltyFee = calulateFee(auction[_auctionId].initialPrice, _royaltyPercentage);
-            uint256 totalFee = serviceFee + royaltyFee;
-            uint256 amountSendToSeller = auction[_auctionId].initialPrice.sub(totalFee);        
-        
-            transferFunds(MarketPlaceOwner ,serviceFee);
-            transferFunds(_royaltyReciver ,royaltyFee);
-            transferFunds(auction[_auctionId].nftOwner , amountSendToSeller);
-
-        }else{
-
-            uint256 amountSendToSeller = auction[_auctionId].initialPrice.sub(serviceFee);
-
-            transferFunds(MarketPlaceOwner ,serviceFee);
-            transferFunds(auction[_auctionId].nftOwner , amountSendToSeller);
-        }
-
-        auction[_auctionId].isSold = true;
-        
-        IERC1155Upgradeable(auction[_auctionId].nftAddress).safeTransferFrom(
-                address(this),
-                auction[_auctionId].currentBidder,
-                auction[_auctionId].tokenId,
-                auction[_auctionId].numberofcopies,
-                '0x00'
-        );
-        
-
-    }
-
-
-
     // Claim NFT
 
     function claimNFT(uint256 _auctionId) external {
@@ -516,33 +464,111 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         else{
             revert("Auction Ended by the Seller and NFT Already tranfered to your wallet");
         }
-    
-        uint256 serviceFee = calulateFee(auction[_auctionId].initialPrice, serviceFeePercentage);
+        
+        auction[_auctionId].newOwner = msg.sender;
+        
+        // The  serviceFee is the platform fee which will goes to the Admin.
+        uint256 serviceFee = calulateFee(auction[_auctionId].price, serviceFeePercentage);
 
-        if(mintingContractAddress == auction[_auctionId].nftAddress){
+        // The  donationFee is the fee which will goes to the non profitable Organizations.
+        uint256 donationFee;
 
-            address _royaltyReciver = mintingContract.getRoyaltyReceiver(
-                auction[_auctionId].tokenId
-            );
+        if(donationInfo[_auctionId].noOfOrgazisations > 0){
+
+            
+            donationFee = calulateFee(auction[_auctionId].price, donationInfo[_auctionId].donatePercentage);
+           
+            if(donationInfo[_auctionId].noOfOrgazisations == 1){
+                
+                if(donationInfo[_auctionId].organizationOne == address(0) && donationInfo[_auctionId].organizationTwo == address(0) ){
+
+                    transferFunds(donationInfo[_auctionId].organizationThree ,serviceFee);
+
+                } else if (donationInfo[_auctionId].organizationOne == address(0) && donationInfo[_auctionId].organizationThree == address(0)){
+
+                    transferFunds(donationInfo[_auctionId].organizationTwo ,serviceFee); 
+
+                } else{
+
+                       transferFunds(donationInfo[_auctionId].organizationOne ,serviceFee);
+                }
+
+            } else if (donationInfo[_auctionId].noOfOrgazisations == 2){
+
+                uint256 perUserFee = donationFee.div(donationInfo[_auctionId].noOfOrgazisations);
+                
+                if(donationInfo[_auctionId].organizationOne == address(0)){
+
+                    transferFunds(donationInfo[_auctionId].organizationTwo ,perUserFee);
+                    transferFunds(donationInfo[_auctionId].organizationThree ,perUserFee);
+
+                } else if (donationInfo[_auctionId].organizationTwo == address(0)){
+
+                    transferFunds(donationInfo[_auctionId].organizationOne ,perUserFee);
+                    transferFunds(donationInfo[_auctionId].organizationThree ,perUserFee);
+
+                }else{
+
+                    transferFunds(donationInfo[_auctionId].organizationOne ,perUserFee);
+                    transferFunds(donationInfo[_auctionId].organizationTwo ,perUserFee);
+                }
+
+            } else {
+
+                uint256 perUserFee = donationFee.div(donationInfo[_auctionId].noOfOrgazisations);
+
+                transferFunds(donationInfo[_auctionId].organizationOne ,perUserFee);
+                transferFunds(donationInfo[_auctionId].organizationTwo ,perUserFee);
+                transferFunds(donationInfo[_auctionId].organizationThree ,perUserFee);
+
+            }
+        }
+
+        // The  fiscalFee is the fee which will goes to the Fiscal sponser of that non profitable Organizations.
+        uint256 fiscalFee;
+
+        if(approvedOrganization[auction[_auctionId].owner].approved){
+            
+             fiscalFee = calulateFee(auction[_auctionId].price, 
+                approvedOrganization[auction[_auctionId].owner].feePercentage);
+
+            transferFunds(approvedOrganization[auction[_auctionId].owner].fiscalSponsor,fiscalFee);
+        }
+
+        // The  royaltyFee is the fee which will goes to First Owner of the Nft.
+        uint256 royaltyFee;
+        
+        if(mintingContractAddress == auction[auctionId].nftAddress){
+
             uint256 _royaltyPercentage = mintingContract.getRoyaltyFeepercentage(
                 auction[_auctionId].tokenId
             );
+            address _royaltyReciver = mintingContract.getRoyaltyReceiver(
+                auction[_auctionId].tokenId
+            );
 
-            uint256 royaltyFee = calulateFee(auction[_auctionId].initialPrice, _royaltyPercentage);
-            uint256 totalFee = serviceFee + royaltyFee;
-            uint256 amountSendToSeller = auction[_auctionId].initialPrice.sub(totalFee);        
-        
-            transferFunds(MarketPlaceOwner ,serviceFee);
+            royaltyFee = calulateFee(auction[_auctionId].price, _royaltyPercentage);
             transferFunds(_royaltyReciver ,royaltyFee);
-            transferFunds(auction[_auctionId].nftOwner , amountSendToSeller);
 
-        }else{
+        }
 
-            uint256 amountSendToSeller = auction[_auctionId].initialPrice.sub(serviceFee);
+
+
+        uint256 amountSendToSeller = auction[_auctionId].price.sub((((serviceFee.add(donationFee)).add(fiscalFee)).add(royaltyFee)));
 
             transferFunds(MarketPlaceOwner ,serviceFee);
-            transferFunds(auction[_auctionId].nftOwner , amountSendToSeller);
-        }
+            transferFunds(auction[_auctionId].owner , amountSendToSeller);
+
+       
+        auction[_auctionId].isSold = true;
+
+        IERC1155Upgradeable(auction[_auctionId].nftAddress).safeTransferFrom(
+                address(this),
+                auction[_auctionId].newOwner,
+                auction[_auctionId].tokenId,
+                auction[_auctionId].noOfCopies,
+                '0x00'
+            );
 
         auction[_auctionId].nftClaimed = true;
         
