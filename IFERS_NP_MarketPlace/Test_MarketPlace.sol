@@ -356,6 +356,15 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
             }
         }
+
+        if(approvedOrganization[fixedPrice[_fixedId].owner].approved){
+            
+            uint256 fiscalFee = calulateFee(fixedPrice[_fixedId].price, 
+                approvedOrganization[fixedPrice[_fixedId].owner].feePercentage);
+
+            transferFunds(approvedOrganization[fixedPrice[_fixedId].owner].fiscalSponsor,fiscalFee);
+        }
+
         
         if(mintingContractAddress == fixedPrice[fixedPriceId].nftAddress){
 
@@ -368,18 +377,6 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
             uint256 royaltyFee = calulateFee(fixedPrice[_fixedId].price, _royaltyPercentage);
 
-            if
-           
-           
-           
-           
-           
-           
-           
-           
-           
-           
-           
             uint256 totalFee = serviceFee + royaltyFee;
             uint256 amountSendToSeller = fixedPrice[_fixedId].price.sub(totalFee);        
         
@@ -388,14 +385,8 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
             transferFunds(fixedPrice[_fixedId].owner , amountSendToSeller);
         
 
-        }else{
-
-            uint256 amountSendToSeller = fixedPrice[_fixedId].price.sub(serviceFee);
-
-            transferFunds(MarketPlaceOwner ,serviceFee);
-            transferFunds(fixedPrice[_fixedId].owner , amountSendToSeller);
-
         }
+        
        
         fixedPrice[_fixedId].isSold = true;
 
