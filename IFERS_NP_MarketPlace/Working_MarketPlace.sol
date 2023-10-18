@@ -149,10 +149,22 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         fixedPrice[fixedPriceId].price = _price;
         fixedPrice[fixedPriceId].tokenId = _tokenId;
         fixedPrice[fixedPriceId].noOfCopies = _noOfCopies;
-        donationInfo[fixedPriceId].organizationOne = _organizationOne;
-        donationInfo[fixedPriceId].organizationTwo = _organizationTwo;
-        donationInfo[fixedPriceId].organizationThree = _organizationThree;
-        donationInfo[fixedPriceId].donatePercentage = _donatePercentage;
+        
+        if(_organizationOne != address(0)){
+            donationInfo[fixedPriceId].organizationOne = _organizationOne;
+        }
+        
+        if(_organizationTwo != address(0)){
+            donationInfo[fixedPriceId].organizationTwo = _organizationTwo;
+        }
+        
+        if(_organizationThree != address(0)){
+            donationInfo[fixedPriceId].organizationThree = _organizationThree;
+        }
+
+        if(_donatePercentage != 0){
+            donationInfo[fixedPriceId].donatePercentage = _donatePercentage;
+        }
         
         if(_nftAddress != mintingContractAddress)
         {
@@ -201,9 +213,11 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         require(_donatePercentage >= 500 && _donatePercentage <= 10000,
             "donation percentage must be between 5 to 100");
         
-        require(_organizationOne != address(0) || _organizationTwo != address(0) 
-            || _organizationThree != address(0), 
-            "You must have to chose atleast one organization.");
+         if(!approvedOrganization[msg.sender].approved){
+            require(_organizationOne != address(0) || _organizationTwo != address(0) 
+                || _organizationThree != address(0), 
+                "You must have to chose atleast one organization.");
+        }
 
         require(_initialPrice > 0 , "intial price can't be zero.");
         require(_tokenId >= 0 , "tokenid can't be negative.");
@@ -222,10 +236,22 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         auction[auctionId].auctionStartTime = _auctionStartTime;
         auction[auctionId].auctionEndTime = _auctionEndTime;
         auction[auctionId].nftOwner = msg.sender;
-        donationInfo[auctionId].organizationOne = _organizationOne;
-        donationInfo[auctionId].organizationTwo = _organizationTwo;
-        donationInfo[auctionId].organizationThree = _organizationThree;
-        donationInfo[auctionId].donatePercentage = _donatePercentage;
+        
+        if(_organizationOne != address(0)){
+            donationInfo[fixedPriceId].organizationOne = _organizationOne;
+        }
+        
+        if(_organizationTwo != address(0)){
+            donationInfo[fixedPriceId].organizationTwo = _organizationTwo;
+        }
+        
+        if(_organizationThree != address(0)){
+            donationInfo[fixedPriceId].organizationThree = _organizationThree;
+        }
+
+        if(_donatePercentage != 0){
+            donationInfo[fixedPriceId].donatePercentage = _donatePercentage;
+        }
 
         if(_nftAddress != mintingContractAddress)
         {
