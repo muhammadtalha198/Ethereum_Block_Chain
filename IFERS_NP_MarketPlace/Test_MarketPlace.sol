@@ -59,19 +59,17 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
     struct Auction{   
 
-        bool isSold;
         bool listed;
         bool nftClaimed;
         uint256 tokenId;
-        uint256 numberofcopies;
+        uint256 noOfCopies;
         uint256 initialPrice;
         uint256 auctionEndTime;      
         uint256 auctionStartTime;
-        uint256 currentBidAmount;
+        uint256 finalPrice;
         address nftOwner;
         address newOwner;
         address nftAddress;
-        address currentBidder;
     }
 
     struct DonationInfo{
@@ -207,15 +205,15 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
                 
                 if(donationInfo[_fixedId].organizationOne == address(0) && donationInfo[_fixedId].organizationTwo == address(0) ){
 
-                    transferFunds(donationInfo[_fixedId].organizationThree ,serviceFee);
+                    transferFunds(donationInfo[_fixedId].organizationThree ,donationFee);
 
                 } else if (donationInfo[_fixedId].organizationOne == address(0) && donationInfo[_fixedId].organizationThree == address(0)){
 
-                    transferFunds(donationInfo[_fixedId].organizationTwo ,serviceFee); 
+                    transferFunds(donationInfo[_fixedId].organizationTwo ,donationFee); 
 
                 } else{
 
-                       transferFunds(donationInfo[_fixedId].organizationOne ,serviceFee);
+                       transferFunds(donationInfo[_fixedId].organizationOne ,donationFee);
                 }
 
             } else if (donationInfo[_fixedId].noOfOrgazisations == 2){
@@ -362,7 +360,7 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
         auction[auctionId].listed = true;
         auction[auctionId].tokenId = _tokenId;
-        auction[auctionId].numberofcopies = _numberofcopies;
+        auction[auctionId].noOfCopies = _numberofcopies;
         auction[auctionId].initialPrice = _initialPrice;
         auction[auctionId].auctionStartTime = _auctionStartTime;
         auction[auctionId].auctionEndTime = _auctionEndTime;
@@ -434,19 +432,19 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         require(!auction[_auctionId].isSold, "Item is already Sold");
 
 
-        address  currentBidder  = auction[_auctionId].currentBidder;
+        address  _currentBidder  = auction[_auctionId].newOwner;
 
-        uint256  currentBidAmount = auction[_auctionId].currentBidAmount;
+        uint256  _currentBidAmount = auction[_auctionId].finalPrice;
         
-        require(msg.value > currentBidAmount,"There is already higer or equal bid exist" );
+        require(msg.value > _currentBidAmount,"There is already higer or equal bid exist" );
 
         
-        if(msg.value > currentBidAmount) {
-            transferFunds(currentBidder ,currentBidAmount);
+        if(msg.value > _currentBidAmount) {
+            transferFunds(_currentBidder ,_currentBidAmount);
         }
 
-        auction[_auctionId].currentBidder = msg.sender;
-        auction[_auctionId].currentBidAmount = msg.value;
+        auction[_auctionId].newOwner = msg.sender;
+        auction[_auctionId].finalPrice = msg.value;
 
     }
 
@@ -455,20 +453,12 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
     function claimNFT(uint256 _auctionId) external {
 
         require(_auctionId > 0,"inavlid auction id");
-        require(msg.sender == auction[_auctionId].currentBidder, "Only Higest Bidder can claim the NFT");
+        require(msg.sender == auction[_auctionId].newOwner, "Only Higest Bidder can claim the NFT");
         require(!auction[_auctionId].nftClaimed,"Higiest bidder already claimed the nft.");
         
-        if(!auction[_auctionId].isSold){
-            require(block.timestamp > auction[_auctionId].auctionEndTime,"Canot claim nft auctiom time not ended!");
-        } 
-        else{
-            revert("Auction Ended by the Seller and NFT Already tranfered to your wallet");
-        }
-        
-        auction[_auctionId].newOwner = msg.sender;
         
         // The  serviceFee is the platform fee which will goes to the Admin.
-        uint256 serviceFee = calulateFee(auction[_auctionId].price, serviceFeePercentage);
+        uint256 serviceFee = calulateFee(auction[_auctionId].finalPrice, serviceFeePercentage);
 
         // The  donationFee is the fee which will goes to the non profitable Organizations.
         uint256 donationFee;
@@ -476,21 +466,21 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         if(donationInfo[_auctionId].noOfOrgazisations > 0){
 
             
-            donationFee = calulateFee(auction[_auctionId].price, donationInfo[_auctionId].donatePercentage);
+            donationFee = calulateFee(auction[_auctionId].finalPrice, donationInfo[_auctionId].donatePercentage);
            
             if(donationInfo[_auctionId].noOfOrgazisations == 1){
                 
                 if(donationInfo[_auctionId].organizationOne == address(0) && donationInfo[_auctionId].organizationTwo == address(0) ){
 
-                    transferFunds(donationInfo[_auctionId].organizationThree ,serviceFee);
+                    transferFunds(donationInfo[_auctionId].organizationThree ,donationFee);
 
                 } else if (donationInfo[_auctionId].organizationOne == address(0) && donationInfo[_auctionId].organizationThree == address(0)){
 
-                    transferFunds(donationInfo[_auctionId].organizationTwo ,serviceFee); 
+                    transferFunds(donationInfo[_auctionId].organizationTwo ,donationFee); 
 
                 } else{
 
-                       transferFunds(donationInfo[_auctionId].organizationOne ,serviceFee);
+                       transferFunds(donationInfo[_auctionId].organizationOne ,donationFee);
                 }
 
             } else if (donationInfo[_auctionId].noOfOrgazisations == 2){
@@ -527,12 +517,12 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         // The  fiscalFee is the fee which will goes to the Fiscal sponser of that non profitable Organizations.
         uint256 fiscalFee;
 
-        if(approvedOrganization[auction[_auctionId].owner].approved){
+        if(approvedOrganization[auction[_auctionId].nftOwner].approved){
             
-             fiscalFee = calulateFee(auction[_auctionId].price, 
-                approvedOrganization[auction[_auctionId].owner].feePercentage);
+             fiscalFee = calulateFee(auction[_auctionId].finalPrice, 
+                approvedOrganization[auction[_auctionId].nftOwner].feePercentage);
 
-            transferFunds(approvedOrganization[auction[_auctionId].owner].fiscalSponsor,fiscalFee);
+            transferFunds(approvedOrganization[auction[_auctionId].nftOwner].fiscalSponsor,fiscalFee);
         }
 
         // The  royaltyFee is the fee which will goes to First Owner of the Nft.
@@ -547,36 +537,25 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
                 auction[_auctionId].tokenId
             );
 
-            royaltyFee = calulateFee(auction[_auctionId].price, _royaltyPercentage);
+            royaltyFee = calulateFee(auction[_auctionId].finalPrice, _royaltyPercentage);
             transferFunds(_royaltyReciver ,royaltyFee);
 
         }
 
 
 
-        uint256 amountSendToSeller = auction[_auctionId].price.sub((((serviceFee.add(donationFee)).add(fiscalFee)).add(royaltyFee)));
+        uint256 amountSendToSeller = auction[_auctionId].finalPrice.sub((((serviceFee.add(donationFee)).add(fiscalFee)).add(royaltyFee)));
 
             transferFunds(MarketPlaceOwner ,serviceFee);
-            transferFunds(auction[_auctionId].owner , amountSendToSeller);
-
-       
-        auction[_auctionId].isSold = true;
-
-        IERC1155Upgradeable(auction[_auctionId].nftAddress).safeTransferFrom(
-                address(this),
-                auction[_auctionId].newOwner,
-                auction[_auctionId].tokenId,
-                auction[_auctionId].noOfCopies,
-                '0x00'
-            );
+            transferFunds(auction[_auctionId].nftOwner , amountSendToSeller);
 
         auction[_auctionId].nftClaimed = true;
         
         IERC1155Upgradeable(auction[_auctionId].nftAddress).safeTransferFrom(
                 address(this),
-                auction[_auctionId].currentBidder,
+                auction[_auctionId].newOwner,
                 auction[_auctionId].tokenId,
-                auction[_auctionId].numberofcopies,
+                auction[_auctionId].noOfCopies,
                 '0x00'
         );
 
@@ -587,27 +566,26 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
     function cancellListingForAuction(uint256 listingID) external {
 
         require(msg.sender == auction[listingID].nftOwner , "You are not the owner");
-        require(!auction[listingID].isSold,"NFT is alrady sold , can not perform this action now");
         require(!auction[listingID].nftClaimed,"NFT is alrady claimed,");
         
         IERC1155Upgradeable(auction[listingID].nftAddress).safeTransferFrom(
             address(this),
             auction[listingID].nftOwner,
             auction[listingID].tokenId,
-            auction[listingID].numberofcopies,
+            auction[listingID].noOfCopies,
             '0x00'
         );
                 
 
         auction[listingID].listed = false;
         auction[listingID].tokenId = 0;
-        auction[listingID].numberofcopies = 0;
+        auction[listingID].noOfCopies = 0;
         auction[listingID].initialPrice = 0;
         auction[listingID].auctionEndTime = 0;
         auction[listingID].auctionStartTime = 0;
         auction[listingID].nftAddress = address(0);
-        auction[listingID].currentBidAmount = 0;
-        auction[listingID].currentBidder = address(0);
+        auction[listingID].finalPrice = 0;
+        auction[listingID].newOwner = address(0);
         
     }
 
