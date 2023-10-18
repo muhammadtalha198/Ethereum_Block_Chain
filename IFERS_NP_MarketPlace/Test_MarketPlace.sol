@@ -152,21 +152,21 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         
         if(_donatePercentage != 0){
             
-            donationInfo[auctionId].donatePercentage = _donatePercentage;
+            donationInfo[fixedPriceId].donatePercentage = _donatePercentage;
             
             if(_organizationOne != address(0)){
-                donationInfo[auctionId].organizationOne = _organizationOne;
-                donationInfo[auctionId].noOfOrgazisations += 1;
+                donationInfo[fixedPriceId].organizationOne = _organizationOne;
+                donationInfo[fixedPriceId].noOfOrgazisations += 1;
             }
             
             if(_organizationTwo != address(0)){
-                donationInfo[auctionId].organizationTwo = _organizationTwo;
-                donationInfo[auctionId].noOfOrgazisations += 1;
+                donationInfo[fixedPriceId].organizationTwo = _organizationTwo;
+                donationInfo[fixedPriceId].noOfOrgazisations += 1;
             }
             
             if(_organizationThree != address(0)){
-                donationInfo[auctionId].organizationThree = _organizationThree;
-                donationInfo[auctionId].noOfOrgazisations += 1;
+                donationInfo[fixedPriceId].organizationThree = _organizationThree;
+                donationInfo[fixedPriceId].noOfOrgazisations += 1;
             }
 
         }
@@ -312,11 +312,47 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
             uint256 donationFee = calulateFee(fixedPrice[_fixedId].price, donationInfo[_fixedId].donatePercentage);
            
             if(donationInfo[_fixedId].noOfOrgazisations == 1){
+                
+                if(donationInfo[_fixedId].organizationOne == address(0) && donationInfo[_fixedId].organizationTwo == address(0) ){
 
+                    transferFunds(donationInfo[_fixedId].organizationThree ,serviceFee);
+
+                } else if (donationInfo[_fixedId].organizationOne == address(0) && donationInfo[_fixedId].organizationThree == address(0)){
+
+                    transferFunds(donationInfo[_fixedId].organizationTwo ,serviceFee); 
+
+                } else{
+
+                       transferFunds(donationInfo[_fixedId].organizationOne ,serviceFee);
+                }
 
             } else if (donationInfo[_fixedId].noOfOrgazisations == 2){
 
+                uint256 perUserFee = donationFee.div(donationInfo[_fixedId].noOfOrgazisations);
+                
+                if(donationInfo[_fixedId].organizationOne == address(0)){
+
+                    transferFunds(donationInfo[_fixedId].organizationTwo ,perUserFee);
+                    transferFunds(donationInfo[_fixedId].organizationThree ,perUserFee);
+
+                } else if (donationInfo[_fixedId].organizationTwo == address(0)){
+
+                    transferFunds(donationInfo[_fixedId].organizationOne ,perUserFee);
+                    transferFunds(donationInfo[_fixedId].organizationThree ,perUserFee);
+
+                }else{
+
+                    transferFunds(donationInfo[_fixedId].organizationOne ,perUserFee);
+                    transferFunds(donationInfo[_fixedId].organizationTwo ,perUserFee);
+                }
+
             } else {
+
+                uint256 perUserFee = donationFee.div(donationInfo[_fixedId].noOfOrgazisations);
+
+                transferFunds(donationInfo[_fixedId].organizationOne ,perUserFee);
+                transferFunds(donationInfo[_fixedId].organizationTwo ,perUserFee);
+                transferFunds(donationInfo[_fixedId].organizationThree ,perUserFee);
 
             }
         }
