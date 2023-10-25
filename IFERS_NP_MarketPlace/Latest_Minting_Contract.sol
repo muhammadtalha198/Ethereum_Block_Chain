@@ -1,5 +1,4 @@
 
-
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
@@ -38,6 +37,7 @@ contract MyToken is Initializable, ERC1155Upgradeable, ERC1155PausableUpgradeabl
     event Mints(address minter,uint256 tokenid,uint256 amount,string tokenUri);
     event BatchMints(address minter,uint256[] tokenid,uint256[] amount,string[] tokenUris);
     event SetRoyalityFee(address nftOwner,uint256 royaltyPercentage);
+    event SetFiscalFee(address fiscalAddress, uint256 feePercentage);
     
 
     
@@ -165,6 +165,7 @@ contract MyToken is Initializable, ERC1155Upgradeable, ERC1155PausableUpgradeabl
 
         fiscalSponsor[organizationAddress].fiscalSponsorPercentage = _fiscalSponsorPercentage;
 
+        emit SetFiscalFee(msg.sender, _fiscalSponsorPercentage);
     }
 
     
