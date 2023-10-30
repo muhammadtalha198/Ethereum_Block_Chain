@@ -1,5 +1,4 @@
 
-
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
@@ -187,7 +186,6 @@ contract MyToken is Initializable, ERC1155Upgradeable, ERC1155PausableUpgradeabl
         require(_fiscalSponsorPercentage >= 100  && _fiscalSponsorPercentage <= 1000 , 
             "_fiscalSponsorPercentage must be between 1 to 10");
         
-
         require(msg.sender == fiscalSponsor[organizationAddress].fiscalSponsor,
             "Only fiscal sponser or the Organization can set and approve the fee.");
 
@@ -201,16 +199,15 @@ contract MyToken is Initializable, ERC1155Upgradeable, ERC1155PausableUpgradeabl
         require(fiscalSponsor[msg.sender].haveFiscalSponsor,
             "No Fiscal sponsor against this organization.");
         
-
         require(msg.sender == fiscalSponsor[msg.sender].fiscalSponsorOf,
             "Only the Organization of this fiscal sponsor can approve this fee.");
         
         fiscalSponsor[msg.sender].approvedfee = _approval;
+        fiscalSponsor[msg.sender].fiscalSponsorPercentage = 0;
 
         emit ApproveFiscalFee(msg.sender, _approval);
     }
     
-
     
     function pause() public onlyOwner {
         _pause();
