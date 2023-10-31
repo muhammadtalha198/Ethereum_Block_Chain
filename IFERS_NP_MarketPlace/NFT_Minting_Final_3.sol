@@ -1,5 +1,4 @@
 
-
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
@@ -31,11 +30,8 @@ contract MyToken is Initializable, ERC1155Upgradeable, ERC1155PausableUpgradeabl
         address fiscalSponsorOf;
     }
 
-    
-
     mapping (uint256 => MinterInfo) public minterInfo;
     mapping (address => FiscalSponsor) public fiscalSponsor;
-
 
     event Mints(address minter,uint256 tokenid,uint256 amount,string tokenUri);
     event BatchMints(address minter,uint256[] tokenid,uint256[] amount,string[] tokenUris);
@@ -87,7 +83,6 @@ contract MyToken is Initializable, ERC1155Upgradeable, ERC1155PausableUpgradeabl
         minterInfo[tokenId].royaltyPercentage = _royaltyFeePercentage;
         minterInfo[tokenId].royaltyReceiver = msg.sender;
         fiscalSponsor[msg.sender].fiscalSponsor = _fiscalSponsor;
-        
         
         emit Mints(msg.sender, tokenId, _noOfCopies, _uri);
     }
@@ -148,6 +143,19 @@ contract MyToken is Initializable, ERC1155Upgradeable, ERC1155PausableUpgradeabl
         emit SetFiscalFee(msg.sender, _fiscalSponsorPercentage);
     }
 
+    function RemoveSponsorPercentage() external {
+        
+        require(fiscalSponsor[msg.sender].haveFiscalSponsor,
+            "No fiscal sponsor against this organization.");
+
+        require(fiscalSponsor[msg.sender].fiscalSponsorOf == msg.sender,
+            "You canot change the fiscal Sponsor fee Percentage.");
+
+        fiscalSponsor[msg.sender].fiscalSponsorPercentage = 0;
+        
+        emit ChangeFiscalFee(msg.sender, true);
+    }
+
     function changeFiscalSponsor(address _fiscalSponsorAddress) external {
         
         require(fiscalSponsor[msg.sender].haveFiscalSponsor,
@@ -158,21 +166,7 @@ contract MyToken is Initializable, ERC1155Upgradeable, ERC1155PausableUpgradeabl
 
         fiscalSponsor[msg.sender].fiscalSponsor = _fiscalSponsorAddress;
 
-         emit ChangeFiscalSponsor(msg.sender, _fiscalSponsorAddress);
-
-    }
-
-    function changeFiscalSponsorFee() external {
-        
-        require(fiscalSponsor[msg.sender].haveFiscalSponsor,
-            "No fiscal sponsor against this organization.");
-
-        require(fiscalSponsor[msg.sender].fiscalSponsorOf == msg.sender,
-            "You canot change the fiscal Sponsor.");
-
-        fiscalSponsor[msg.sender].fiscalSponsorPercentage = 0;
-        
-        emit ChangeFiscalFee(msg.sender, true);
+        emit ChangeFiscalSponsor(msg.sender, _fiscalSponsorAddress);
     }
 
     function setRoyalityPercentage(uint256 _tokenId, uint256 _royaltyFeePercentage) external {
@@ -206,15 +200,16 @@ contract MyToken is Initializable, ERC1155Upgradeable, ERC1155PausableUpgradeabl
         );
     }
 
-    function getFiscalSponsor(address _organizationAddress) external view returns (uint256, address){
+    function getFiscalSponsor(address _organizationAddress) external view returns (bool,uint256, address, address){
         
         return (
+            fiscalSponsor[_organizationAddress].haveFiscalSponsor,
             fiscalSponsor[_organizationAddress].fiscalSponsorPercentage,
-            fiscalSponsor[_organizationAddress].fiscalSponsor
+            fiscalSponsor[_organizationAddress].fiscalSponsor,
+            fiscalSponsor[_organizationAddress].fiscalSponsorOf
         );
     }
     
-
     
     function pause() public onlyOwner {
         _pause();
