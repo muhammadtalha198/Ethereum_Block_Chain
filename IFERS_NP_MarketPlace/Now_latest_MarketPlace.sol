@@ -1,5 +1,4 @@
 
-
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
@@ -16,7 +15,7 @@ import "@openzeppelin/contracts-upgradeable/token/ERC1155/utils/ERC1155HolderUpg
 interface MintingContract{
 
     function getMinterInfo(uint256 _tokenId) external view returns (uint256, address);
-    function getFiscalSponsor(address _organizationAddress) external view returns (uint256, address);
+    function getFiscalSponsor(address _organizationAddress) external view returns (bool,uint256, address, address);
 }
 
 contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradeable, UUPSUpgradeable ,  PausableUpgradeable {
@@ -76,7 +75,6 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         uint256 auctionStartTime;
         uint256 currentBidAmount;
         address nftOwner;
-        address newOwner;
         address nftAddress;
         address currentBidder;
     }
@@ -122,18 +120,29 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         address _organizationOne,
         address _organizationTwo,
         address _organizationThree,
-        uint256 _donatePercentage
+        uint256 _donatePercentage,
+        address _fiscalSponsor
     ) external returns(uint256){
 
+        (
+            bool _haveSponsor,
+            uint256 _fiscalSponsorPercentage,
+            address _previousFiscalSponser,
+            address _fiscalSponsorOf
+        
+        )  = mintingContract.getFiscalSponsor(msg.sender);
+        
+        if(_haveSponsor){
+            require(_fiscalSponsor == _previousFiscalSponser, "You are a malacious User.");
+            require(_fiscalSponsorPercentage != 0, "Your Fiscal Sponsor didnt set fee Yet!");
+        }
+        
         listItemForFixedPrice( _tokenId, _noOfCopies,  _price, _nftAddress, _organizationOne, _organizationTwo, _organizationThree, _donatePercentage);
+        
         return fixedPriceId;
 
    }
    
-
-    
-    
-
     function listItemForFixedPrice(
         uint256 _tokenId,
         uint256 _noOfCopies, 
@@ -278,9 +287,15 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         // The  fiscalFee is the fee which will goes to the Fiscal sponser of that non profitable Organizations.
         uint256 fiscalFee;
         
-        (uint256 _fiscalSponsorPercentage,address _fiscalSponser) = mintingContract.getFiscalSponsor(fixedPrice[_fixedId].nftOwner);
+        (
+            bool _haveSponsor,
+            uint256 _fiscalSponsorPercentage,
+            address _fiscalSponser,
+            address _fiscalSponsorOf
+        
+        )  = mintingContract.getFiscalSponsor(msg.sender);
 
-        if(_fiscalSponser != address(0)){
+        if(_haveSponsor){
             
             fiscalFee = calulateFee(fixedPrice[_fixedId].price, _fiscalSponsorPercentage);
 
@@ -342,9 +357,6 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
     }
 
 
-
-
-
     //--List item for Auction--------------------------------------------------------------------/
 
      function auctionForUsers(
@@ -380,8 +392,22 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         address _organizationOne,
         address _organizationTwo,
         address _organizationThree,
-        uint256 _donatePercentage
+        uint256 _donatePercentage,
+        address _fiscalSponsor
     ) external returns(uint256){
+
+         (
+            bool _haveSponsor,
+            uint256 _fiscalSponsorPercentage,
+            address _previousFiscalSponser,
+            address _fiscalSponsorOf
+        
+        )  = mintingContract.getFiscalSponsor(msg.sender);
+        
+        if(_haveSponsor){
+            require(_fiscalSponsor == _previousFiscalSponser, "You are a malacious User.");
+            require(_fiscalSponsorPercentage != 0, "Your Fiscal Sponsor didnt set fee Yet!");
+        }
 
         listItemForAuction( _initialPrice,_auctionStartTime,_auctionEndTime ,_tokenId,_noOfCopies,_nftAddress,_organizationOne,_organizationTwo,_organizationThree,_donatePercentage);
         return auctionId;
@@ -503,7 +529,7 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
             transferFunds(currentBidder ,currentBidAmount);
         }
 
-        auction[_auctionId].newOwner = msg.sender;
+        auction[_auctionId].currentBidder = msg.sender;
         auction[_auctionId].currentBidAmount = msg.value;
 
     }
@@ -513,10 +539,9 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
     function claimNFT(uint256 _auctionId) external {
 
         require(_auctionId > 0,"inavlid auction id");
-        require(msg.sender == auction[_auctionId].newOwner, "Only Higest Bidder can claim the NFT");
+        require(msg.sender == auction[_auctionId].currentBidder, "Only Higest Bidder can claim the NFT");
         require(!auction[_auctionId].nftClaimed,"Higiest bidder already claimed the nft.");
-        
-          auction[_auctionId].newOwner = msg.sender;
+
         
         // The  serviceFee is the platform fee which will goes to the Admin.
         uint256 serviceFee = calulateFee(auction[_auctionId].currentBidAmount, serviceFeePercentage);
@@ -611,7 +636,7 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         
         IERC1155Upgradeable(auction[_auctionId].nftAddress).safeTransferFrom(
                 address(this),
-                auction[_auctionId].newOwner,
+                auction[_auctionId].currentBidder,
                 auction[_auctionId].tokenId,
                 auction[_auctionId].noOfCopies,
                 '0x00'
@@ -644,7 +669,7 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         auction[listingID].auctionStartTime = 0;
         auction[listingID].nftAddress = address(0);
         auction[listingID].currentBidAmount = 0;
-        auction[listingID].newOwner = address(0);
+        auction[listingID].currentBidder = address(0);
         
     }
 
