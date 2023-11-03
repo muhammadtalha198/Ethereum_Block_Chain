@@ -211,53 +211,7 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
         if(donationInfoFixed[_fixedId].noOfOrgazisations > 0){
 
-            
-            donationFee = calulateFee(fixedPrice[_fixedId].price, donationInfoFixed[_fixedId].donatePercentage);
-           
-            if(donationInfoFixed[_fixedId].noOfOrgazisations == 1){
-                
-                if(donationInfoFixed[_fixedId].organizationOne == address(0) && donationInfoFixed[_fixedId].organizationTwo == address(0) ){
-
-                    transferFunds(donationInfoFixed[_fixedId].organizationThree ,serviceFee);
-
-                } else if (donationInfoFixed[_fixedId].organizationOne == address(0) && donationInfoFixed[_fixedId].organizationThree == address(0)){
-
-                    transferFunds(donationInfoFixed[_fixedId].organizationTwo ,serviceFee); 
-
-                } else{
-
-                       transferFunds(donationInfoFixed[_fixedId].organizationOne ,serviceFee);
-                }
-
-            } else if (donationInfoFixed[_fixedId].noOfOrgazisations == 2){
-
-                uint256 perUserFee = donationFee.div(donationInfoFixed[_fixedId].noOfOrgazisations);
-                
-                if(donationInfoFixed[_fixedId].organizationOne == address(0)){
-
-                    transferFunds(donationInfoFixed[_fixedId].organizationTwo ,perUserFee);
-                    transferFunds(donationInfoFixed[_fixedId].organizationThree ,perUserFee);
-
-                } else if (donationInfoFixed[_fixedId].organizationTwo == address(0)){
-
-                    transferFunds(donationInfoFixed[_fixedId].organizationOne ,perUserFee);
-                    transferFunds(donationInfoFixed[_fixedId].organizationThree ,perUserFee);
-
-                }else{
-
-                    transferFunds(donationInfoFixed[_fixedId].organizationOne ,perUserFee);
-                    transferFunds(donationInfoFixed[_fixedId].organizationTwo ,perUserFee);
-                }
-
-            } else {
-
-                uint256 perUserFee = donationFee.div(donationInfoFixed[_fixedId].noOfOrgazisations);
-
-                transferFunds(donationInfoFixed[_fixedId].organizationOne ,perUserFee);
-                transferFunds(donationInfoFixed[_fixedId].organizationTwo ,perUserFee);
-                transferFunds(donationInfoFixed[_fixedId].organizationThree ,perUserFee);
-
-            }
+           donationFee =  donationFeeTransfer(_fixedId);    
         }
 
         // The  fiscalFee is the fee which will goes to the Fiscal sponser of that non profitable Organizations.
@@ -307,6 +261,8 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
             );
     }
 
+
+
     function cancellListingForFixedPRice(uint256 listingID) external {
 
         require(msg.sender == fixedPrice[listingID].nftOwner , "You are not the nftOwner");   
@@ -339,7 +295,7 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
     //--List item for Auction--------------------------------------------------------------------/
 
      function auctionForUsers(
-         uint256 _initialPrice,
+        uint256 _initialPrice,
         uint256 _auctionStartTime,
         uint256 _auctionEndTime ,
         uint256 _tokenId,
@@ -459,20 +415,6 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
     // Buy Fixed Price---------------------------------------------------------------------------------------------------
 
 
-    function setMintingAddress(uint256 _tokenId,uint256 _noOfCopies, uint256 priceId, address setAddress) private {
-
-        auction[priceId].nftAddress = setAddress;
-        IERC1155Upgradeable(setAddress).safeTransferFrom(
-            msg.sender,
-            address(this),
-            _tokenId ,
-            _noOfCopies,
-            '0x00'
-        );
-
-    }
-
-
     function startBid( uint256 _auctionId)  external payable whenNotPaused {
 
         require(_auctionId > 0,"inavlid auction id");
@@ -515,54 +457,8 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         uint256 donationFee;
 
         if(donationInfoAuction[_auctionId].noOfOrgazisations > 0){
-
-            
-            donationFee = calulateFee(auction[_auctionId].currentBidAmount, donationInfoAuction[_auctionId].donatePercentage);
            
-            if(donationInfoAuction[_auctionId].noOfOrgazisations == 1){
-                
-                if(donationInfoAuction[_auctionId].organizationOne == address(0) && donationInfoAuction[_auctionId].organizationTwo == address(0) ){
-
-                    transferFunds(donationInfoAuction[_auctionId].organizationThree ,serviceFee);
-
-                } else if (donationInfoAuction[_auctionId].organizationOne == address(0) && donationInfoAuction[_auctionId].organizationThree == address(0)){
-
-                    transferFunds(donationInfoAuction[_auctionId].organizationTwo ,serviceFee); 
-
-                } else{
-
-                       transferFunds(donationInfoAuction[_auctionId].organizationOne ,serviceFee);
-                }
-
-            } else if (donationInfoAuction[_auctionId].noOfOrgazisations == 2){
-
-                uint256 perUserFee = donationFee.div(donationInfoAuction[_auctionId].noOfOrgazisations);
-                
-                if(donationInfoAuction[_auctionId].organizationOne == address(0)){
-
-                    transferFunds(donationInfoAuction[_auctionId].organizationTwo ,perUserFee);
-                    transferFunds(donationInfoAuction[_auctionId].organizationThree ,perUserFee);
-
-                } else if (donationInfoAuction[_auctionId].organizationTwo == address(0)){
-
-                    transferFunds(donationInfoAuction[_auctionId].organizationOne ,perUserFee);
-                    transferFunds(donationInfoAuction[_auctionId].organizationThree ,perUserFee);
-
-                }else{
-
-                    transferFunds(donationInfoAuction[_auctionId].organizationOne ,perUserFee);
-                    transferFunds(donationInfoAuction[_auctionId].organizationTwo ,perUserFee);
-                }
-
-            } else {
-
-                uint256 perUserFee = donationFee.div(donationInfoAuction[_auctionId].noOfOrgazisations);
-
-                transferFunds(donationInfoAuction[_auctionId].organizationOne ,perUserFee);
-                transferFunds(donationInfoAuction[_auctionId].organizationTwo ,perUserFee);
-                transferFunds(donationInfoAuction[_auctionId].organizationThree ,perUserFee);
-
-            }
+            donationFee =  donationFeeTransfer(_auctionId);
         }
 
         // The  fiscalFee is the fee which will goes to the Fiscal sponser of that non profitable Organizations.
@@ -669,8 +565,74 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
                 donationInfoFixed[_priceId].organizationThree = _organizationThree;
                 donationInfoFixed[_priceId].noOfOrgazisations += 1;
             }
+    }
+
+    function setMintingAddress(uint256 _tokenId,uint256 _noOfCopies, uint256 priceId, address setAddress) private {
+
+        auction[priceId].nftAddress = setAddress;
+        IERC1155Upgradeable(setAddress).safeTransferFrom(
+            msg.sender,
+            address(this),
+            _tokenId ,
+            _noOfCopies,
+            '0x00'
+        );
+
+    }
+
+
+    function donationFeeTransfer(uint256 _id ) private returns (uint256){
+
+        uint256 _donationFee = calulateFee(fixedPrice[_id].price, donationInfoFixed[_id].donatePercentage);
+        
+        if(donationInfoFixed[_id].noOfOrgazisations == 1){
+            
+            if(donationInfoFixed[_id].organizationOne == address(0) && donationInfoFixed[_id].organizationTwo == address(0) ){
+
+                transferFunds(donationInfoFixed[_id].organizationThree ,_donationFee);
+
+            } else if (donationInfoFixed[_id].organizationOne == address(0) && donationInfoFixed[_id].organizationThree == address(0)){
+
+                transferFunds(donationInfoFixed[_id].organizationTwo ,_donationFee); 
+
+            } else{
+
+                    transferFunds(donationInfoFixed[_id].organizationOne ,_donationFee);
+            }
+
+        } else if (donationInfoFixed[_id].noOfOrgazisations == 2){
+
+            uint256 perUserFee = _donationFee.div(donationInfoFixed[_id].noOfOrgazisations);
+            
+            if(donationInfoFixed[_id].organizationOne == address(0)){
+
+                transferFunds(donationInfoFixed[_id].organizationTwo ,perUserFee);
+                transferFunds(donationInfoFixed[_id].organizationThree ,perUserFee);
+
+            } else if (donationInfoFixed[_id].organizationTwo == address(0)){
+
+                transferFunds(donationInfoFixed[_id].organizationOne ,perUserFee);
+                transferFunds(donationInfoFixed[_id].organizationThree ,perUserFee);
+
+            }else{
+
+                transferFunds(donationInfoFixed[_id].organizationOne ,perUserFee);
+                transferFunds(donationInfoFixed[_id].organizationTwo ,perUserFee);
+            }
+
+        } else {
+
+            uint256 perUserFee = _donationFee.div(donationInfoFixed[_id].noOfOrgazisations);
+
+            transferFunds(donationInfoFixed[_id].organizationOne ,perUserFee);
+            transferFunds(donationInfoFixed[_id].organizationTwo ,perUserFee);
+            transferFunds(donationInfoFixed[_id].organizationThree ,perUserFee);
 
         }
+
+        return _donationFee;
+    }
+
 
 
     function setPlatFormServiceFeePercentage(uint256 _serviceFeePercentage) external onlyOwner returns(uint256){
