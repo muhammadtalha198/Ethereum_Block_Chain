@@ -128,7 +128,6 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
             bool _haveSponsor,
             uint256 _fiscalSponsorPercentage,
             address _previousFiscalSponser,
-            address _fiscalSponsorOf
         
         )  = mintingContract.getFiscalSponsor(msg.sender);
         
@@ -173,46 +172,23 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         
         if(_donatePercentage != 0){
             
-            donationInfoFixed[fixedPriceId].donatePercentage = _donatePercentage;
-            
-            if(_organizationOne != address(0)){
-                donationInfoFixed[fixedPriceId].organizationOne = _organizationOne;
-                donationInfoFixed[fixedPriceId].noOfOrgazisations += 1;
-            }
-            
-            if(_organizationTwo != address(0)){
-                donationInfoFixed[fixedPriceId].organizationTwo = _organizationTwo;
-                donationInfoFixed[fixedPriceId].noOfOrgazisations += 1;
-            }
-            
-            if(_organizationThree != address(0)){
-                donationInfoFixed[fixedPriceId].organizationThree = _organizationThree;
-                donationInfoFixed[fixedPriceId].noOfOrgazisations += 1;
-            }
+            setDonationInfo(
+                _donatePercentage, 
+                fixedPriceId, 
+                _organizationOne, 
+                _organizationTwo, 
+                _organizationThree
+            );
 
         }
         
-        if(_nftAddress != mintingContractAddress)
-        {
-            fixedPrice[fixedPriceId].nftAddress = _nftAddress;
-            IERC1155Upgradeable(mintingContractAddress).safeTransferFrom(
-                msg.sender,
-                address(this),
-                _tokenId,
-                _noOfCopies,
-                "0x00"
-            );
+        if(_nftAddress != mintingContractAddress){
+
+            setMintingAddress( _tokenId, _noOfCopies,  fixedPriceId,  _nftAddress);
 
         }else{
 
-            fixedPrice[fixedPriceId].nftAddress = mintingContractAddress;
-            IERC1155Upgradeable(_nftAddress).safeTransferFrom(
-                msg.sender,
-                address(this),
-                _tokenId,
-                _noOfCopies,
-                "0x00"
-            );
+            setMintingAddress( _tokenId, _noOfCopies,  fixedPriceId,  mintingContractAddress);
         }
  
     }
@@ -291,14 +267,12 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
             bool _haveSponsor,
             uint256 _fiscalSponsorPercentage,
             address _fiscalSponser,
-            address _fiscalSponsorOf
         
         )  = mintingContract.getFiscalSponsor(msg.sender);
 
         if(_haveSponsor){
             
             fiscalFee = calulateFee(fixedPrice[_fixedId].price, _fiscalSponsorPercentage);
-
             transferFunds(_fiscalSponser,fiscalFee);
         }
 
@@ -353,6 +327,11 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
             fixedPrice[listingID].tokenId = 0;
             fixedPrice[listingID].noOfCopies = 0;
             fixedPrice[listingID].nftAddress = address(0);
+
+            donationInfoFixed[fixedPriceId].organizationOne = address(0);
+            donationInfoFixed[fixedPriceId].organizationTwo = address(0);
+            donationInfoFixed[fixedPriceId].organizationThree = address(0);
+            donationInfoFixed[fixedPriceId].noOfOrgazisations = 0;
         
     }
 
@@ -396,11 +375,10 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         address _fiscalSponsor
     ) external returns(uint256){
 
-         (
+        (
             bool _haveSponsor,
             uint256 _fiscalSponsorPercentage,
             address _previousFiscalSponser,
-            address _fiscalSponsorOf
         
         )  = mintingContract.getFiscalSponsor(msg.sender);
         
@@ -456,47 +434,23 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
         if(_donatePercentage != 0){
             
-            donationInfoAuction[auctionId].donatePercentage = _donatePercentage;
-            
-            if(_organizationOne != address(0)){
-                donationInfoAuction[auctionId].organizationOne = _organizationOne;
-                donationInfoAuction[auctionId].noOfOrgazisations += 1;
-            }
-            
-            if(_organizationTwo != address(0)){
-                donationInfoAuction[auctionId].organizationTwo = _organizationTwo;
-                donationInfoAuction[auctionId].noOfOrgazisations += 1;
-            }
-            
-            if(_organizationThree != address(0)){
-                donationInfoAuction[auctionId].organizationThree = _organizationThree;
-                donationInfoAuction[auctionId].noOfOrgazisations += 1;
-            }
+           setDonationInfo(
+                _donatePercentage, 
+                auctionId, 
+                _organizationOne, 
+                _organizationTwo, 
+                _organizationThree
+            );
 
         }
 
-        if(_nftAddress != mintingContractAddress)
-        {
-            auction[auctionId].nftAddress = _nftAddress;
-            IERC1155Upgradeable(mintingContractAddress).safeTransferFrom(
-                msg.sender,
-                address(this),
-                _tokenId ,
-                _noOfCopies,
-                '0x00'
-            );
+        if(_nftAddress != mintingContractAddress){
+
+            setMintingAddress( _tokenId, _noOfCopies,  auctionId,  _nftAddress);
 
         }else{
 
-            auction[auctionId].nftAddress = mintingContractAddress;
-            IERC1155Upgradeable(_nftAddress).safeTransferFrom(
-                msg.sender,
-                address(this),
-                _tokenId ,
-                _noOfCopies,
-                '0x00'
-            ); 
-
+            setMintingAddress( _tokenId, _noOfCopies,  auctionId,  mintingContractAddress); 
         }
 
          return auctionId;
@@ -505,7 +459,18 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
     // Buy Fixed Price---------------------------------------------------------------------------------------------------
 
 
-    
+    function setMintingAddress(uint256 _tokenId,uint256 _noOfCopies, uint256 priceId, address setAddress) private {
+
+        auction[priceId].nftAddress = setAddress;
+        IERC1155Upgradeable(setAddress).safeTransferFrom(
+            msg.sender,
+            address(this),
+            _tokenId ,
+            _noOfCopies,
+            '0x00'
+        );
+
+    }
 
 
     function startBid( uint256 _auctionId)  external payable whenNotPaused {
@@ -603,13 +568,18 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         // The  fiscalFee is the fee which will goes to the Fiscal sponser of that non profitable Organizations.
         uint256 fiscalFee;
         
-        (uint256 _fiscalSponsorPercentage,address _fiscalSponser) = mintingContract.getFiscalSponsor(auction[_auctionId].nftOwner);
+        (
+            bool _haveSponsor,
+            uint256 _fiscalSponsorPercentage,
+            address _fiscalSponsor,
+        
+        )  = mintingContract.getFiscalSponsor(msg.sender);
 
-        if(_fiscalSponser != address(0)){
+        if(_haveSponsor){
             
             fiscalFee = calulateFee(auction[_auctionId].currentBidAmount, _fiscalSponsorPercentage);
 
-            transferFunds(_fiscalSponser,fiscalFee);
+            transferFunds(_fiscalSponsor,fiscalFee);
         }
 
         // The  royaltyFee is the fee which will goes to First Owner of the Nft.
@@ -672,6 +642,35 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         auction[listingID].currentBidder = address(0);
         
     }
+
+    function setDonationInfo(
+
+        uint256 _donatePercentage,
+        uint256 _priceId,
+        address _organizationOne,
+        address _organizationTwo,
+        address _organizationThree
+
+        ) private {
+
+             donationInfoFixed[_priceId].donatePercentage = _donatePercentage;
+            
+            if(_organizationOne != address(0)){
+                donationInfoFixed[_priceId].organizationOne = _organizationOne;
+                donationInfoFixed[_priceId].noOfOrgazisations += 1;
+            }
+            
+            if(_organizationTwo != address(0)){
+                donationInfoFixed[_priceId].organizationTwo = _organizationTwo;
+                donationInfoFixed[_priceId].noOfOrgazisations += 1;
+            }
+            
+            if(_organizationThree != address(0)){
+                donationInfoFixed[_priceId].organizationThree = _organizationThree;
+                donationInfoFixed[_priceId].noOfOrgazisations += 1;
+            }
+
+        }
 
 
     function setPlatFormServiceFeePercentage(uint256 _serviceFeePercentage) external onlyOwner returns(uint256){
