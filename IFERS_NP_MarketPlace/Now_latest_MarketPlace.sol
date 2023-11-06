@@ -108,7 +108,17 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
                 || _organizationThree != address(0), 
                 "You must have to chose atleast one organization.");
 
-        listItemForFixedPrice( _tokenId, _noOfCopies,  _price, _nftAddress, _organizationOne, _organizationTwo, _organizationThree, _donatePercentage);
+        listItemForFixedPrice( 
+            _tokenId, 
+            _noOfCopies, 
+            _price, 
+            _nftAddress, 
+            _organizationOne, 
+            _organizationTwo, 
+            _organizationThree, 
+            _donatePercentage
+        );
+
         return fixedPriceId;
    }
 
@@ -136,7 +146,15 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
             require(_fiscalSponsorPercentage != 0, "Your Fiscal Sponsor didnt set fee Yet!");
         }
         
-        listItemForFixedPrice( _tokenId, _noOfCopies,  _price, _nftAddress, _organizationOne, _organizationTwo, _organizationThree, _donatePercentage);
+        listItemForFixedPrice( 
+            _tokenId, 
+            _noOfCopies,
+            _price, 
+            _nftAddress, 
+            _organizationOne, 
+            _organizationTwo, 
+            _organizationThree, 
+            _donatePercentage);
         
         return fixedPriceId;
 
@@ -242,8 +260,6 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
         }
 
-
-
         uint256 amountSendToSeller = fixedPrice[_fixedId].price.sub((((serviceFee.add(donationFee)).add(fiscalFee)).add(royaltyFee)));
 
             transferFunds(marketPlaceOwner ,serviceFee);
@@ -252,15 +268,14 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
        
         fixedPrice[_fixedId].isSold = true;
 
-        IERC1155Upgradeable(fixedPrice[_fixedId].nftAddress).safeTransferFrom(
-                address(this),
-                fixedPrice[_fixedId].newOwner,
-                fixedPrice[_fixedId].tokenId,
-                fixedPrice[_fixedId].noOfCopies,
-                '0x00'
-            );
+        transferNft(
+            fixedPrice[_fixedId].nftAddress,
+            address(this),
+            fixedPrice[_fixedId].newOwner, 
+            fixedPrice[_fixedId].tokenId, 
+            fixedPrice[_fixedId].noOfCopies
+        );
     }
-
 
 
     function cancellListingForFixedPRice(uint256 listingID) external {
@@ -349,7 +364,6 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
    }
 
 
-    
     function listItemForAuction(
         uint256 _initialPrice,
         uint256 _auctionStartTime,
@@ -499,13 +513,13 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
 
         auction[_auctionId].nftClaimed = true;
-        
-        IERC1155Upgradeable(auction[_auctionId].nftAddress).safeTransferFrom(
-                address(this),
-                auction[_auctionId].currentBidder,
-                auction[_auctionId].tokenId,
-                auction[_auctionId].noOfCopies,
-                '0x00'
+
+        transferNft(
+            auction[_auctionId].nftAddress,
+            address(this),
+            auction[_auctionId].currentBidder, 
+            auction[_auctionId].tokenId, 
+            auction[_auctionId].noOfCopies
         );
 
                    
@@ -518,12 +532,12 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         require(!auction[listingID].isSold,"NFT is alrady sold , can not perform this action now");
         require(!auction[listingID].nftClaimed,"NFT is alrady claimed,");
         
-        IERC1155Upgradeable(auction[listingID].nftAddress).safeTransferFrom(
+        transferNft(
+            auction[listingID].nftAddress,
             address(this),
-            auction[listingID].nftOwner,
-            auction[listingID].tokenId,
-            auction[listingID].noOfCopies,
-            '0x00'
+            auction[listingID].nftOwner, 
+            auction[listingID].tokenId, 
+            auction[listingID].noOfCopies
         );
                 
 
@@ -570,13 +584,32 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
     function setMintingAddress(uint256 _tokenId,uint256 _noOfCopies, uint256 priceId, address setAddress) private {
 
         auction[priceId].nftAddress = setAddress;
-        IERC1155Upgradeable(setAddress).safeTransferFrom(
+
+        transferNft(
+            setAddress,
             msg.sender,
-            address(this),
-            _tokenId ,
-            _noOfCopies,
-            '0x00'
+            address(this), 
+            _tokenId, 
+            _noOfCopies
         );
+
+    }
+
+    function transferNft(
+        address _nftAddress,
+        address _from, 
+        address _to, 
+        uint256 _tokenId,  
+        uint256 _noOfcopies
+    ) private {
+
+         IERC1155Upgradeable(_nftAddress).safeTransferFrom(
+                _from,
+                _to,
+                _tokenId,
+                _noOfcopies,
+                '0x00'
+            );
 
     }
 
