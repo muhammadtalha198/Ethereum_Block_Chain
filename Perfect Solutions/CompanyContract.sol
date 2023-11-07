@@ -1,4 +1,3 @@
-
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
@@ -54,7 +53,7 @@ contract DocumentStash is Ownable {
     mapping(string => Company) public companyMap;
 
     event CompanyCreated(string ID, string name);
-    event ProductCreated(string ID, string name);
+    event ProductCreated(uint256 ID, string name);
     event ClaimCreated(uint256 ID, string name);
     event DocumentCreated(uint256 ID, string name, string dochash);
 
@@ -79,7 +78,7 @@ contract DocumentStash is Ownable {
         companyMap[_companyID].productMap[_productID].productName = _productName;
         companyMap[_companyID].productMap[_productID].initialized = true;
 
-        emit ClaimCreated(_productID, _productName);
+        emit ProductCreated(_productID, _productName);
 
         companyMap[_companyID].productCounter.increment();
     }
