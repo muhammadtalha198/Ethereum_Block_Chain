@@ -53,8 +53,8 @@ contract DocumentStash is Ownable {
     mapping(string => Company) public companyMap;
 
     event CompanyCreated(string ID, string name);
-    event ProductCreated(uint256 ID, string name);
-    event ClaimCreated(uint256 ID, string name);
+    event ProductCreated(string companyID,uint256 productID, string productName);
+    event ClaimCreated(string companyID, uint256 productID,uint256 claimID, string claimName);
     event DocumentCreated(uint256 ID, string name, string dochash);
 
     function createNewCompany(string memory _companyID, string memory _companyName) public onlyOwner {
@@ -70,49 +70,52 @@ contract DocumentStash is Ownable {
 
     function createNewProduct(string memory _companyID, string memory _productName) public onlyOwner {
         
-        require(companyMap[_companyID].initialized == true, "Company does not exist");
-
+        require(companyMap[_companyID].initialized, "Company does not exist");
+        
         uint256 _productID = companyMap[_companyID].productCounter.current();
 
         companyMap[_companyID].productMap[_productID].productID = _productID;
         companyMap[_companyID].productMap[_productID].productName = _productName;
         companyMap[_companyID].productMap[_productID].initialized = true;
 
-        emit ProductCreated(_productID, _productName);
-
         companyMap[_companyID].productCounter.increment();
+
+        emit ProductCreated(_companyID,_productID, _productName);
     }
 
-    function createNewClaim(string memory _companyID, string memory _claimName) public onlyOwner {
+    function createNewClaim(string memory _companyID, uint256 _productID, string memory _claimName) public onlyOwner {
         
         require(companyMap[_companyID].initialized == true, "Company does not exist");
+        require(companyMap[_companyID].productMap[_productID].initialized, "Product does not exist");
 
-        uint256 claimID = companyMap[_companyID].claimsCounter.current();
+        uint256 _claimID = companyMap[_companyID].productMap[_productID].claimsCounter.current();
 
-        companyMap[_companyID].claimMap[claimID].claimID = claimID;
-        companyMap[_companyID].claimMap[claimID].claimName = _claimName;
-        companyMap[_companyID].claimMap[claimID].initialized = true;
+        companyMap[_companyID].productMap[_productID].claimMap[_claimID].claimID = _claimID;
+        companyMap[_companyID].productMap[_productID].claimMap[_claimID].claimName = _claimName;
+        companyMap[_companyID].productMap[_productID].claimMap[_claimID].initialized = true;
 
-        emit ClaimCreated(claimID, _claimName);
+        companyMap[_companyID].productMap[_productID].claimsCounter.increment();
 
-        companyMap[_companyID].claimsCounter.increment();
+        emit ClaimCreated(_companyID, _productID, _claimID, _claimName);
     }
 
-    function createNewDocument(string memory _companyID, uint256 _claimID, string memory _documentHash, string memory _documentName) public onlyOwner {
-        require(companyMap[_companyID].initialized == true, "Company does not exist");
-        require(companyMap[_companyID].claimMap[_claimID].initialized == true, "Claim does not exit");
+    function createNewDocument(string memory _companyID,uint256 _productID, uint256 _claimID, string memory _documentHash, string memory _documentName) public onlyOwner {
         
-        uint256 documentID = companyMap[_companyID].claimMap[_claimID].documentsCounter.current();
+        require(companyMap[_companyID].initialized == true, "Company does not exist");
+        require(companyMap[_companyID].productMap[_productID].initialized, "Product does not exist");
+        require(companyMap[_companyID].productMap[_productID].claimMap[_claimID].initialized, "Claim does not exist");
+        
+        uint256 documentID = companyMap[_companyID].productMap[_productID].claimMap[_claimID].documentsCounter.current();
 
-        companyMap[_companyID].claimMap[_claimID].documentMap[documentID].documentID = documentID;
-        companyMap[_companyID].claimMap[_claimID].documentMap[documentID].documentName = _documentName;
-        companyMap[_companyID].claimMap[_claimID].documentMap[documentID].documentHash = _documentHash;
-        companyMap[_companyID].claimMap[_claimID].documentMap[documentID].timestamp = block.timestamp;
-        companyMap[_companyID].claimMap[_claimID].documentMap[documentID].initialized = true;
+        companyMap[_companyID].productMap[_productID].claimMap[_claimID].documentMap[documentID].documentID = documentID;
+        companyMap[_companyID].productMap[_productID].claimMap[_claimID].documentMap[documentID].documentName = _documentName;
+        companyMap[_companyID].productMap[_productID].claimMap[_claimID].documentMap[documentID].documentHash = _documentHash;
+        companyMap[_companyID].productMap[_productID].claimMap[_claimID].documentMap[documentID].timestamp = block.timestamp;
+        companyMap[_companyID].productMap[_productID].claimMap[_claimID].documentMap[documentID].initialized = true;
 
+        companyMap[_companyID].productMap[_productID].claimMap[_claimID].documentsCounter.increment();
+        
         emit DocumentCreated(documentID, _documentName, _documentHash);
-
-        companyMap[_companyID].claimMap[_claimID].documentsCounter.increment();
     }
 
     function addNewSignatures(string memory _companyID, uint256 _claimID, uint256 _documentID, string[] memory _signatures) public onlyOwner {
