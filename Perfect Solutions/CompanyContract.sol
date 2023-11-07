@@ -146,6 +146,12 @@ contract DocumentStash is Ownable {
         return (documents,  companyMap[_companyID].productMap[_productID].claimMap[_claimID].claimName);
     }
 
+    function getProductCounter(string memory _companyID) public view returns(uint256) {
+        
+        require(companyMap[_companyID].initialized, "Company does not exist"); 
+        return  companyMap[_companyID].productCounter.current();
+    }
+
     function getClaimsCounter(string memory _companyID,uint256 _productID) public view returns(uint256) {
         
         require(companyMap[_companyID].initialized == true, "Company does not exist");
@@ -154,10 +160,14 @@ contract DocumentStash is Ownable {
         return  companyMap[_companyID].productMap[_productID].claimsCounter.current();
     }
 
-    // function getDocumentsCounter(string memory _companyID, uint256 _claimID) public view returns(Counters.Counter memory) {
-    //     require(companyMap[_companyID].initialized == true, "Company does not exist");
-    //     require(companyMap[_companyID].claimMap[_claimID].initialized == true, "Claim does not exit");
+    function getDocumentsCounter(string memory _companyID, uint256 _claimID,uint256 _productID) public view returns(Counters.Counter memory) {
+        
+        require(companyMap[_companyID].initialized == true, "Company does not exist");
+        require(companyMap[_companyID].productMap[_productID].initialized, "Product does not exist");
+        require(companyMap[_companyID].productMap[_productID].claimMap[_claimID].initialized, "Claim does not exist");
 
-    //     return companyMap[_companyID].claimMap[_claimID].documentsCounter;
-    // }
+        return companyMap[_companyID].productMap[_productID].claimMap[_claimID].documentsCounter;
+    }
 }
+
+// aaaaaa
