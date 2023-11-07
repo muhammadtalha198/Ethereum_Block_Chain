@@ -118,41 +118,46 @@ contract DocumentStash is Ownable {
         emit DocumentCreated(documentID, _documentName, _documentHash);
     }
 
-    function addNewSignatures(string memory _companyID, uint256 _claimID, uint256 _documentID, string[] memory _signatures) public onlyOwner {
+    function addNewSignatures(string memory _companyID, uint256 _productID, uint256 _claimID, uint256 _documentID, string[] memory _signatures) public onlyOwner {
         
         require(companyMap[_companyID].initialized == true, "Company does not exist");
-        require(companyMap[_companyID].claimMap[_claimID].initialized == true, "Claim does not exit");
-        require(companyMap[_companyID].claimMap[_claimID].documentMap[_documentID].initialized == true, "Document does not exist");
+        require(companyMap[_companyID].productMap[_productID].initialized, "Product does not exist");
+        require(companyMap[_companyID].productMap[_productID].claimMap[_claimID].initialized, "Claim does not exist");
+        require(companyMap[_companyID].productMap[_productID].claimMap[_claimID].documentMap[_documentID].initialized == true, "Document does not exist");
 
         for (uint256 i = 0; i < _signatures.length ; i++) {
-            companyMap[_companyID].claimMap[_claimID].documentMap[_documentID].signatures.push(_signatures[i]);
+            companyMap[_companyID].productMap[_productID].claimMap[_claimID].documentMap[_documentID].signatures.push(_signatures[i]);
         }
     }
 
-    function getClaim(string memory _companyID, uint256 _claimID) public view returns (Document[] memory, string memory) {
-        require(companyMap[_companyID].initialized == true, "Company does not exist");
-        require(companyMap[_companyID].claimMap[_claimID].initialized == true, "Claim does not exit");
+    function getClaim(string memory _companyID, uint256 _productID, uint256 _claimID) public view returns (Document[] memory, string memory) {
+       require(companyMap[_companyID].initialized == true, "Company does not exist");
+        require(companyMap[_companyID].productMap[_productID].initialized, "Product does not exist");
+        require(companyMap[_companyID].productMap[_productID].claimMap[_claimID].initialized, "Claim does not exist");
 
-        uint256 numberOfDocuments = companyMap[_companyID].claimMap[_claimID].documentsCounter.current();
+        uint256 numberOfDocuments = companyMap[_companyID].productMap[_productID].claimMap[_claimID].documentsCounter.current();
 
         Document[] memory documents = new Document[](numberOfDocuments);
 
         for (uint256 i = 0; i < numberOfDocuments ; i++) {
-            documents[i] = companyMap[_companyID].claimMap[_claimID].documentMap[i];
+            documents[i] = companyMap[_companyID].productMap[_productID].claimMap[_claimID].documentMap[i];
         }
 
-        return (documents, companyMap[_companyID].claimMap[_claimID].claimName);
+        return (documents,  companyMap[_companyID].productMap[_productID].claimMap[_claimID].claimName);
     }
 
-    function getClaimsCounter(string memory _companyID) public view returns(uint256) {
+    function getClaimsCounter(string memory _companyID,uint256 _productID) public view returns(uint256) {
+        
         require(companyMap[_companyID].initialized == true, "Company does not exist");
-        return  companyMap[_companyID].claimsCounter.current();
+        require(companyMap[_companyID].productMap[_productID].initialized, "Product does not exist");
+        
+        return  companyMap[_companyID].productMap[_productID].claimsCounter.current();
     }
 
-    function getDocumentsCounter(string memory _companyID, uint256 _claimID) public view returns(Counters.Counter memory) {
-        require(companyMap[_companyID].initialized == true, "Company does not exist");
-        require(companyMap[_companyID].claimMap[_claimID].initialized == true, "Claim does not exit");
+    // function getDocumentsCounter(string memory _companyID, uint256 _claimID) public view returns(Counters.Counter memory) {
+    //     require(companyMap[_companyID].initialized == true, "Company does not exist");
+    //     require(companyMap[_companyID].claimMap[_claimID].initialized == true, "Claim does not exit");
 
-        return companyMap[_companyID].claimMap[_claimID].documentsCounter;
-    }
+    //     return companyMap[_companyID].claimMap[_claimID].documentsCounter;
+    // }
 }
