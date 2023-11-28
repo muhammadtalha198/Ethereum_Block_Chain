@@ -107,6 +107,7 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         uint256 _donatePercentageThree
     ) external returns(uint256){
 
+
         require(_initialPrice > 0 , "intial price can't be zero.");
         require(_tokenId >= 0 , "tokenid can't be negative.");
         require(_noOfCopies > 0 , "0 amount can't be listed.");
@@ -158,12 +159,13 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
     function checkPercentage(address _organization, uint256 _percentage) private pure {
             
-            if(_organization != address(0)){
-                
-                require(_percentage >= 500 && _percentage <= 10000,
-                "donation percentage must be between 5 to 100");
-            }
+        if(_organization != address(0)){
+            
+            require(_percentage >= 500 && _percentage <= 10000,
+            "donation percentage must be between 5 to 100");
         }
+    }
+
 
    
     function listForOrganizations(
