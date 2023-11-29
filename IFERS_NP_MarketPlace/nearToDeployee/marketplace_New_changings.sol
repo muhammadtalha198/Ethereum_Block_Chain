@@ -515,27 +515,23 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
     }
 
-
-    function donationFeeTransfer(uint256 _id , bool _inEth) private returns (uint256){
-        
-
-
+     function donationFeeTransfer(uint256 _id , bool _inEth) private returns (uint256){
 
         if(donationInfo[_id].noOfOrgazisations == 1){
             
-            if(donationInfo[_id].organizationOne == address(0) && donationInfo[_id].organizationTwo == address(0) ){
+            if(donationInfo[_id].organizationOne != address(0)){
 
-                uint256 donationAmountThree = calulateFee(listing[_id].price, donationInfo[_id].donatePercentageThree );
+                uint256 donationAmountOne = calulateFee(listing[_id].price, donationInfo[_id].donatePercentageOne );
                 
                 if(_inEth){
-                    transferFundsInEth(donationInfo[_id].organizationThree , donationAmountThree);
+                    transferFundsInEth(donationInfo[_id].organizationThree , donationAmountOne);
                 }else{
-                    transferFundsInWEth(listing[_id].currentBidder, donationInfo[_id].organizationThree ,donationAmountThree);
+                    transferFundsInWEth(listing[_id].currentBidder, donationInfo[_id].organizationThree ,donationAmountOne);
                 }
 
-               return donationAmountThree;
+               return donationAmountOne;
 
-            } else if (donationInfo[_id].organizationOne == address(0) && donationInfo[_id].organizationThree == address(0)){
+            } else if (donationInfo[_id].organizationTwo == address(0)){
 
                 uint256 donationAmountTwo = calulateFee(listing[_id].price, donationInfo[_id].donatePercentageTwo );
                 
@@ -549,15 +545,15 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
             } else{
 
-                uint256 donationAmountOne = calulateFee(listing[_id].price, donationInfo[_id].donatePercentageOne );
+                uint256 donationAmountThree = calulateFee(listing[_id].price, donationInfo[_id].donatePercentageThree );
                 
                 if(_inEth){
-                    transferFundsInEth(donationInfo[_id].organizationOne , donationAmountOne);
+                    transferFundsInEth(donationInfo[_id].organizationOne , donationAmountThree);
 
                 }else{
-                    transferFundsInWEth(listing[_id].currentBidder, donationInfo[_id].organizationOne , donationAmountOne);
+                    transferFundsInWEth(listing[_id].currentBidder, donationInfo[_id].organizationOne , donationAmountThree);
                 }
-                return donationAmountOne;
+                return donationAmountThree;
             }
 
         } else if (donationInfo[_id].noOfOrgazisations == 2){
@@ -640,7 +636,6 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         }
 
     }
-
 
 
     function setPlatFormServiceFeePercentage(uint256 _serviceFeePercentage) external onlyOwner returns(uint256){
