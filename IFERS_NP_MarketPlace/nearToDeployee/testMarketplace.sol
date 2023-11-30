@@ -88,6 +88,8 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
     //--List item for list--------------------------------------------------------------------/
 
+   
+
      function listForUsers(
         uint256 _initialPrice,
         uint256 _listStartTime,
@@ -97,46 +99,30 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         address _nftAddress,
         address[] memory _organizations,
         uint256[] memory _donatePercentages
-    ) external returns(uint256){
+    ) external  returns(uint256){
 
 
-        require(_initialPrice > 0 , "intial price can't be zero.");
-        require(_tokenId >= 0 , "tokenid can't be negative.");
-        require(_noOfCopies > 0 , "0 amount can't be listed.");
-        require(_nftAddress != address(0), "Invalid address.");
-        // require(_listStartTime >= block.timestamp && _listEndTime > block.timestamp ,
-        //  "startTime and end time must be greater then currentTime");
         require(_organizations.length >= 1 && _organizations.length <= 3,"you can chose one to three organizations.");
         require(_organizations.length == _donatePercentages.length, "invalid organizations input.");
 
-        
         checkPercentage( _organizations, _donatePercentages);
-
         listId++;
-            
+        
+        setListingInfo(_tokenId,_noOfCopies,_initialPrice,_listStartTime,_listEndTime,_nftAddress);    
         setDonationInfo(listId, _organizations, _donatePercentages);
-
-
-        listing[listId].listed = true;
-        listing[listId].tokenId = _tokenId;
-        listing[listId].noOfCopies = _noOfCopies;
-        listing[listId].price = _initialPrice;
-        listing[listId].listingStartTime = _listStartTime;
-        listing[listId].listingEndTime = _listEndTime;
-        listing[listId].nftOwner = msg.sender;
 
         if(_nftAddress != mintingContractAddress){
 
             setMintingAddress( _tokenId, _noOfCopies,  listId,  _nftAddress);
-
         }else{
-
             setMintingAddress( _tokenId, _noOfCopies,  listId,  mintingContractAddress); 
         }
 
          return listId;
 
     }
+
+     
 
     function checkPercentage(address [] memory _organizations, uint256[] memory _percentages) private pure {
         
@@ -150,6 +136,17 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
     }
 
+    function setDonationInfo(uint256 _priceId,address[] memory _organizations,uint256 [] memory _donatePercentages) private {
+
+        for(uint256 i=0; i < _organizations.length; i++){
+            
+            if(_organizations[i] != address(0)){
+                donationInfo[_priceId].organizations[i] = _organizations[i];
+                donationInfo[_priceId].donatePercentages[i] = _donatePercentages[i];
+                donationInfo[_priceId].noOfOrgazisations += 1;
+            }
+        }
+    }
 
    
     function listForOrganizations(
@@ -160,15 +157,12 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         uint256 _noOfCopies,
         address _nftAddress,
         address _fiscalSponsor
-    ) external returns(uint256){
+    ) external  returns(uint256){
 
-        require(_initialPrice > 0 , "intial price can't be zero.");
-        require(_tokenId >= 0 , "tokenid can't be negative.");
-        require(_noOfCopies > 0 , "0 amount can't be listed.");
-        require(_nftAddress != address(0), "Invalid address.");
-        // require(_listStartTime >= block.timestamp && _listEndTime > block.timestamp ,
-        //  "startTime and end time must be greater then currentTime");
+       listId++;
 
+       setListingInfo(_tokenId,_noOfCopies,_initialPrice,_listStartTime,_listEndTime,_nftAddress);
+        
         (
             bool _haveSponsor,
             uint256 _fiscalSponsorPercentage,
@@ -181,18 +175,6 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
             require(_fiscalSponsorPercentage != 0, "Your Fiscal Sponsor didnt set fee Yet!");
         }
 
-       listId++;
-
-        listing[listId].listed = true;
-        listing[listId].tokenId = _tokenId;
-        listing[listId].noOfCopies = _noOfCopies;
-        listing[listId].price = _initialPrice;
-        listing[listId].listingStartTime = _listStartTime;
-        listing[listId].listingEndTime = _listEndTime;
-        listing[listId].nftOwner = msg.sender;
-        
-
-
         if(_nftAddress != mintingContractAddress){
 
             setMintingAddress( _tokenId, _noOfCopies,  listId,  _nftAddress);
@@ -204,6 +186,32 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         return listId;
 
    }
+
+   function setListingInfo(
+        uint256 _tokenId,
+        uint256 _noOfCopies,
+        uint256 _initialPrice,
+        uint256 _listStartTime,
+        uint256 _listEndTime,
+        address _nftAddress) 
+        private checkForList (
+            _initialPrice,
+            _listStartTime,
+            _listEndTime,
+            _tokenId,
+            _noOfCopies,
+            _nftAddress) 
+        {
+
+        listing[listId].listed = true;
+        listing[listId].tokenId = _tokenId;
+        listing[listId].noOfCopies = _noOfCopies;
+        listing[listId].price = _initialPrice;
+        listing[listId].listingStartTime = _listStartTime;
+        listing[listId].listingEndTime = _listEndTime;
+        listing[listId].nftOwner = msg.sender;
+    }
+
 
 
 
@@ -396,12 +404,33 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         );               
     }
 
+    function donationFeeTransfer(uint256 _id, bool _inEth) private returns (uint256) {
+
+        uint256 totalDonationAmount = 0;
+
+        for (uint256 i = 0; i < donationInfo[_id].noOfOrgazisations; i++) {
+           
+            if ( donationInfo[_id].organizations[i] != address(0)) {
+               
+                uint256 donationAmount = calulateFee(listing[_id].price,  donationInfo[_id].donatePercentages[i]);
+               
+                if (_inEth) {
+                    transferFundsInEth(donationInfo[_id].organizations[i], donationAmount);
+                } else {
+                    transferFundsInWEth(listing[_id].currentBidder, donationInfo[_id].organizations[i], donationAmount);
+                }
+                totalDonationAmount += donationAmount;
+            }
+        }
+        return totalDonationAmount;
+    }
+
 
 
     function cancellListingForlist(uint256 _listingID) external {
 
         require(msg.sender == listing[_listingID].nftOwner , "You are not the nftOwner");
-        require(!listing[_listingID].nftClaimed,"NFT is alrady claimed,");
+        require(!listing[_listingID].nftClaimed,"NFT is alrady sold,");
         
         transferNft(
             listing[_listingID].nftAddress,
@@ -423,20 +452,6 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         listing[_listingID].currentBidder = address(0);
         
     }
-
-    function setDonationInfo(uint256 _priceId,address[] memory _organizations,uint256 [] memory _donatePercentages) private {
-
-            for(uint256 i=0; i < _organizations.length; i++){
-                
-                if(_organizations[i] != address(0)){
-                    donationInfo[_priceId].organizations[i] = _organizations[i];
-                    donationInfo[_priceId].donatePercentages[i] = _donatePercentages[i];
-                    donationInfo[_priceId].noOfOrgazisations += 1;
-                }
-            }
-        }
-
-
 
     function setMintingAddress(uint256 _tokenId,uint256 _noOfCopies, uint256 priceId, address setAddress) private {
 
@@ -470,29 +485,6 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
     }
 
-    function donationFeeTransfer(uint256 _id, bool _inEth) private returns (uint256) {
-
-        uint256 totalDonationAmount = 0;
-
-        for (uint256 i = 0; i < donationInfo[_id].noOfOrgazisations; i++) {
-           
-            if ( donationInfo[_id].organizations[i] != address(0)) {
-               
-                uint256 donationAmount = calulateFee(listing[_id].price,  donationInfo[_id].donatePercentages[i]);
-               
-                if (_inEth) {
-                    transferFundsInEth(donationInfo[_id].organizations[i], donationAmount);
-                } else {
-                    transferFundsInWEth(listing[_id].currentBidder, donationInfo[_id].organizations[i], donationAmount);
-                }
-                totalDonationAmount += donationAmount;
-            }
-        }
-        return totalDonationAmount;
-    }   
-
-
-
     function setPlatFormServiceFeePercentage(uint256 _serviceFeePercentage) external onlyOwner returns(uint256){
         require( _serviceFeePercentage >=100  && _serviceFeePercentage <= 1000, 
             "fee % must between in 1% to 10% ");
@@ -511,21 +503,14 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         return serviceFee;
     }
 
-    
-
-
-
     function transferFundsInEth(address _recipient, uint256 _amount) private {
-        // (bool success, ) = payable(_recipient).call{value: _amount}("");
-         payable(_recipient).transfer(_amount);
-        // require(success, "Transfer  fee failed");
+         payable(_recipient).transfer(_amount); 
     }
 
     function transferFundsInWEth(address _src,address _recipient, uint256 _amount) private {
         (bool success) = wMatic.transferFrom(_src, _recipient, _amount);
         require(success, "Transfer  fee failed");
     }
-
 
     function pause() public onlyOwner {
         _pause();
@@ -544,6 +529,24 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
     modifier OnlyTokenHolders(uint256 _tokenid , address _nftAddress){
         require(IERC1155Upgradeable(_nftAddress).balanceOf(msg.sender, _tokenid)>0 , "You are not the nftOwner of Token");
         _;
+    }
+
+     modifier checkForList (
+        uint256 _initialPrice,
+        uint256 _listStartTime,
+        uint256 _listEndTime,
+        uint256 _tokenId,
+        uint256 _noOfCopies,
+        address _nftAddress)
+    {
+        require(_initialPrice > 0 , "intial price can't be zero.");
+        require(_tokenId >= 0 , "tokenid can't be negative.");
+        require(_noOfCopies > 0 , "0 amount can't be listed.");
+        require(_nftAddress != address(0), "Invalid address.");
+        // require(_listStartTime >= block.timestamp && _listEndTime > block.timestamp ,
+        //  "startTime and end time must be greater then currentTime");
+
+        _;        
     }
 
 }
