@@ -1,6 +1,5 @@
 
 
-
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
@@ -77,12 +76,8 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
     struct DonationInfo{
 
         uint256 noOfOrgazisations;
-        uint256 donatePercentageOne;
-        uint256 donatePercentageTwo;
-        uint256 donatePercentageThree;
-        address organizationOne;
-        address organizationTwo;
-        address organizationThree;
+        address[3] organizations;
+        uint256[3] donatePercentages;
     }
 
 
@@ -100,12 +95,8 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         uint256 _tokenId,
         uint256 _noOfCopies,
         address _nftAddress,
-        address _organizationOne,
-        address _organizationTwo,
-        address _organizationThree,
-        uint256 _donatePercentageOne,
-        uint256 _donatePercentageTwo,
-        uint256 _donatePercentageThree
+        address [] _organizations,
+        uint256 [] _donatePercentages
     ) external returns(uint256){
 
 
@@ -116,25 +107,21 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         // require(_listStartTime >= block.timestamp && _listEndTime > block.timestamp ,
         //  "startTime and end time must be greater then currentTime");
 
-        require(_organizationOne != address(0) || _organizationTwo != address(0) 
-                || _organizationThree != address(0), 
-                "You must have to chose atleast one organization.");
+        bool atleastOne;
+        for (uint256 i=0; i < _organizations.length; i++){
+            if(_organizations[i] != address(0)){
+                atleastOne = true; 
+            }
+        }
 
-        checkPercentage( _organizationOne, _donatePercentageOne);
-        checkPercentage( _organizationTwo, _donatePercentageTwo);
-        checkPercentage( _organizationThree, _donatePercentageThree);
+        require(atleastOne, "You must have to chose atleast one organization.");
+        require(_organizations.length == _donatePercentages.length,"invalid input of organizations" );
+        
+        checkPercentage( _organizations, _donatePercentages);
 
         listId++;
             
-           setDonationInfo(
-                _donatePercentageOne, 
-                _donatePercentageTwo, 
-                _donatePercentageThree, 
-                listId, 
-                _organizationOne, 
-                _organizationTwo, 
-                _organizationThree
-            );
+        setDonationInfo(listId, _organizations, _donatePercentages);
 
 
         listing[listId].listed = true;
@@ -158,13 +145,16 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
     }
 
-    function checkPercentage(address _organization, uint256 _percentage) private pure {
-            
-        if(_organization != address(0)){
-            
-            require(_percentage >= 500 && _percentage <= 10000,
-            "donation percentage must be between 5 to 100");
-        }
+    function checkPercentage(address [] _organizations, uint256[] _percentages) private pure {
+        
+        for (uint256 i=0; i < _organizations.length; i++){
+            if(_organizations[i] != address(0)){
+
+                require(_percentages[i] >= 500 && _percentages[i] <= 10000,
+                    "donation percentage must be between 5 to 100");
+            }
+        } 
+
     }
 
 
@@ -223,11 +213,7 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
    }
 
-uint256 public  fiscalFee;
-uint256 public  donationFee;
-uint256 public royaltyFee;
-uint256 public serviceFee;
-uint256 public amountSendToSeller;
+
 
     // Buy Fixed Price---------------------------------------------------------------------------------------------------
     function BuyFixedPriceItem(uint256 _listId) payable external whenNotPaused { 
@@ -249,9 +235,9 @@ uint256 public amountSendToSeller;
 
         listing[_listId].currentBidder = msg.sender;
         
-         serviceFee = calulateFee(listing[_listId].price, serviceFeePercentage);
+         uint256 serviceFee = calulateFee(listing[_listId].price, serviceFeePercentage);
 
-        // uint256 donationFee;
+        uint256 donationFee;
         
         
         if(donationInfo[_listId].noOfOrgazisations > 0){
@@ -259,7 +245,7 @@ uint256 public amountSendToSeller;
            donationFee =  donationFeeTransfer(_listId, true);    
         }
 
-        // uint256 fiscalFee;
+        uint256 fiscalFee;
         
         (
             bool _haveSponsor,
@@ -274,8 +260,7 @@ uint256 public amountSendToSeller;
             transferFundsInEth(_fiscalSponser,fiscalFee);
         }
 
-        // The  royaltyFee is the fee which will goes to First Owner of the Nft.
-        // uint256 royaltyFee;
+        uint256 royaltyFee;
         
         if(mintingContractAddress == listing[_listId].nftAddress){
 
@@ -287,7 +272,7 @@ uint256 public amountSendToSeller;
         }
 
 
-         amountSendToSeller = listing[_listId].price.sub((((serviceFee.add(donationFee)).add(fiscalFee)).add(royaltyFee)));
+         uint256 amountSendToSeller = listing[_listId].price.sub((((serviceFee.add(donationFee)).add(fiscalFee)).add(royaltyFee)));
 
             transferFundsInEth(marketPlaceOwner ,serviceFee);
             transferFundsInEth(listing[_listId].nftOwner , amountSendToSeller);
@@ -362,27 +347,19 @@ uint256 public amountSendToSeller;
         
         require(msg.sender == listing[_listId].nftOwner, 
             "Only nftOwner can accept the offer.");
-
-        require(!listing[_listId].nftClaimed,
-            "Already sold");
         
-        require(listing[_listId].nftOwner == msg.sender,
-            "only owner can accept.");
 
         
-        // The  serviceFee is the platform fee which will goes to the Admin.
-        // uint256 serviceFee = calulateFee(listing[_listId].currentBidAmount, serviceFeePercentage);
+        uint256 serviceFee = calulateFee(listing[_listId].currentBidAmount, serviceFeePercentage);
         
-        // The  donationFee is the fee which will goes to the non profitable Organizations.
-        // uint256 donationFee;
+        uint256 donationFee;
 
         if(donationInfo[_listId].noOfOrgazisations > 0){
            
             donationFee =  donationFeeTransfer(_listId, false);
         }
 
-        // The  fiscalFee is the fee which will goes to the Fiscal sponser of that non profitable Organizations.
-        // uint256 fiscalFee;
+        uint256 fiscalFee;
         
         (
             bool _haveSponsor,
@@ -398,8 +375,7 @@ uint256 public amountSendToSeller;
             transferFundsInWEth(listing[_listId].currentBidder, _fiscalSponsor,fiscalFee);
         }
 
-        // The  royaltyFee is the fee which will goes to First Owner of the Nft.
-        // uint256 royaltyFee;
+        uint256 royaltyFee;
         
         if(mintingContractAddress == listing[_listId].nftAddress){
 
@@ -410,7 +386,7 @@ uint256 public amountSendToSeller;
 
         }
 
-         amountSendToSeller = listing[_listId].currentBidAmount.sub((((serviceFee.add(donationFee)).add(fiscalFee)).add(royaltyFee)));
+         uint256 amountSendToSeller = listing[_listId].currentBidAmount.sub((((serviceFee.add(donationFee)).add(fiscalFee)).add(royaltyFee)));
 
             transferFundsInWEth(listing[_listId].currentBidder,marketPlaceOwner ,serviceFee);
             transferFundsInWEth(listing[_listId].currentBidder,listing[_listId].nftOwner , amountSendToSeller);
@@ -458,32 +434,20 @@ uint256 public amountSendToSeller;
 
     function setDonationInfo(
 
-        uint256 _donatePercentageOne,
-        uint256 _donatePercentageTwo,
-        uint256 _donatePercentageThree,
         uint256 _priceId,
-        address _organizationOne,
-        address _organizationTwo,
-        address _organizationThree
+        address[] _organizations,
+        uint256 [] _donatePercentages
 
         ) private {
 
-            if(_organizationOne != address(0)){
-            donationInfo[_priceId].organizationOne = _organizationOne;
-            donationInfo[_priceId].donatePercentageOne = _donatePercentageOne;
-            donationInfo[_priceId].noOfOrgazisations += 1;
-        }
-        
-        if(_organizationTwo != address(0)){
-            donationInfo[_priceId].organizationTwo = _organizationTwo;
-            donationInfo[_priceId].donatePercentageTwo = _donatePercentageTwo;
-            donationInfo[_priceId].noOfOrgazisations += 1;
-        }
-        
-        if(_organizationThree != address(0)){
-            donationInfo[_priceId].organizationThree = _organizationThree;
-            donationInfo[_priceId].donatePercentageThree = _donatePercentageThree;
-            donationInfo[_priceId].noOfOrgazisations += 1;
+            for(uint256 i=0; i < _organizations.length; i++){
+                
+                if(_organizations[i] != address(0)){
+                    donationInfo[_priceId].organizations[i] = _organizations[i];
+                    donationInfo[_priceId].donatePercentages[i] = _donatePercentages[i];
+                    donationInfo[_priceId].noOfOrgazisations += 1;
+                }
+            }
         }
     }
 
@@ -523,155 +487,37 @@ uint256 public amountSendToSeller;
 
     function donationFeeTransfer(uint256 _id, bool _inEth) private returns (uint256) {
     
-    address[3] memory organizations = [
-        donationInfo[_id].organizationOne,
-        donationInfo[_id].organizationTwo,
-        donationInfo[_id].organizationThree
-    ];
+        address[3] memory organizations = [
+            donationInfo[_id].organizationOne,
+            donationInfo[_id].organizationTwo,
+            donationInfo[_id].organizationThree
+        ];
 
-    uint256[3] memory percentages = [
-        donationInfo[_id].donatePercentageOne,
-        donationInfo[_id].donatePercentageTwo,
-        donationInfo[_id].donatePercentageThree
-    ];
+        uint256[3] memory percentages = [
+            donationInfo[_id].donatePercentageOne,
+            donationInfo[_id].donatePercentageTwo,
+            donationInfo[_id].donatePercentageThree
+        ];
 
-    uint256 totalDonationAmount = 0;
+        uint256 totalDonationAmount = 0;
 
-    for (uint256 i = 0; i < donationInfo[_id].noOfOrgazisations; i++) {
-        if (organizations[i] != address(0)) {
-            uint256 donationAmount = calulateFee(listing[_id].price, percentages[i]);
-            if (_inEth) {
-                transferFundsInEth(organizations[i], donationAmount);
-            } else {
-                transferFundsInWEth(listing[_id].currentBidder, organizations[i], donationAmount);
+        for (uint256 i = 0; i < donationInfo[_id].noOfOrgazisations; i++) {
+           
+            if (organizations[i] != address(0)) {
+               
+                uint256 donationAmount = calulateFee(listing[_id].price, percentages[i]);
+               
+                if (_inEth) {
+                    transferFundsInEth(organizations[i], donationAmount);
+                } else {
+                    transferFundsInWEth(listing[_id].currentBidder, organizations[i], donationAmount);
+                }
+                totalDonationAmount += donationAmount;
             }
-            totalDonationAmount += donationAmount;
         }
-    }
-    return totalDonationAmount;
-}
+        return totalDonationAmount;
+    }   
 
-    function donationFeeTransfer1(uint256 _id , bool _inEth) private returns (uint256){
-
-        if(donationInfo[_id].noOfOrgazisations == 1){
-            
-            if(donationInfo[_id].organizationOne != address(0)){
-
-                uint256 donationAmountOne = calulateFee(listing[_id].price, donationInfo[_id].donatePercentageOne );
-                
-                if(_inEth){
-                    transferFundsInEth(donationInfo[_id].organizationThree , donationAmountOne);
-                }else{
-                    transferFundsInWEth(listing[_id].currentBidder, donationInfo[_id].organizationThree ,donationAmountOne);
-                }
-
-               return donationAmountOne;
-
-            } else if (donationInfo[_id].organizationTwo == address(0)){
-
-                uint256 donationAmountTwo = calulateFee(listing[_id].price, donationInfo[_id].donatePercentageTwo );
-                
-                if(_inEth){
-                    transferFundsInEth(donationInfo[_id].organizationTwo , donationAmountTwo); 
-                }else{
-                    transferFundsInWEth(listing[_id].currentBidder, donationInfo[_id].organizationTwo , donationAmountTwo); 
-                }
-                
-                return donationAmountTwo;
-
-            } else{
-
-                uint256 donationAmountThree = calulateFee(listing[_id].price, donationInfo[_id].donatePercentageThree );
-                
-                if(_inEth){
-                    transferFundsInEth(donationInfo[_id].organizationOne , donationAmountThree);
-
-                }else{
-                    transferFundsInWEth(listing[_id].currentBidder, donationInfo[_id].organizationOne , donationAmountThree);
-                }
-                return donationAmountThree;
-            }
-
-        } else if (donationInfo[_id].noOfOrgazisations == 2){
-            
-            if(donationInfo[_id].organizationOne == address(0)){
-
-                uint256 donationAmountThree = calulateFee(listing[_id].price, donationInfo[_id].donatePercentageThree );
-                uint256 donationAmountTwo = calulateFee(listing[_id].price, donationInfo[_id].donatePercentageTwo );
-                
-                if(_inEth){
-
-                    transferFundsInEth(donationInfo[_id].organizationTwo , donationAmountTwo);
-                    transferFundsInEth(donationInfo[_id].organizationThree , donationAmountThree);
-
-                }else{
-
-                    transferFundsInWEth(listing[_id].currentBidder, donationInfo[_id].organizationTwo , donationAmountTwo);
-                    transferFundsInWEth(listing[_id].currentBidder, donationInfo[_id].organizationThree , donationAmountThree);
-                }
-
-                return (donationAmountThree.add(donationAmountTwo));
-
-            } else if (donationInfo[_id].organizationTwo == address(0)){
-
-                uint256 donationAmountThree = calulateFee(listing[_id].price, donationInfo[_id].donatePercentageThree );
-                uint256 donationAmountOne = calulateFee(listing[_id].price, donationInfo[_id].donatePercentageOne );
-                
-                if(_inEth){
-
-                    transferFundsInEth(donationInfo[_id].organizationOne , donationAmountOne);
-                    transferFundsInEth(donationInfo[_id].organizationThree , donationAmountThree);
-                }else{
-
-                    transferFundsInWEth(listing[_id].currentBidder, donationInfo[_id].organizationOne , donationAmountOne);
-                    transferFundsInWEth(listing[_id].currentBidder, donationInfo[_id].organizationThree , donationAmountThree);
-                }
-
-                return (donationAmountThree.add(donationAmountOne));
-
-            }else{
-
-                uint256 donationAmountOne = calulateFee(listing[_id].price, donationInfo[_id].donatePercentageOne);
-                uint256 donationAmountTwo = calulateFee(listing[_id].price, donationInfo[_id].donatePercentageTwo);
-
-                if(_inEth){
-
-                    transferFundsInEth(donationInfo[_id].organizationOne , donationAmountOne);
-                    transferFundsInEth(donationInfo[_id].organizationTwo , donationAmountTwo);
-                }else{
-
-                    transferFundsInWEth(listing[_id].currentBidder, donationInfo[_id].organizationOne , donationAmountOne);
-                    transferFundsInWEth(listing[_id].currentBidder, donationInfo[_id].organizationTwo , donationAmountTwo);
-                }
-
-                return (donationAmountOne.add(donationAmountTwo));
-            }
-
-        } else {
-
-            uint256 donationAmountThree = calulateFee(listing[_id].price, donationInfo[_id].donatePercentageThree);
-            uint256 donationAmountTwo = calulateFee(listing[_id].price, donationInfo[_id].donatePercentageTwo );
-            uint256 donationAmountOne = calulateFee(listing[_id].price, donationInfo[_id].donatePercentageOne );
-            
-            if(_inEth){
-
-
-
-                transferFundsInEth(donationInfo[_id].organizationOne , donationAmountOne);
-                transferFundsInEth(donationInfo[_id].organizationTwo , donationAmountTwo);
-                transferFundsInEth(donationInfo[_id].organizationThree , donationAmountThree);
-
-            }else{
-                transferFundsInWEth(listing[_id].currentBidder, donationInfo[_id].organizationOne , donationAmountOne);
-                transferFundsInWEth(listing[_id].currentBidder, donationInfo[_id].organizationTwo , donationAmountTwo);
-                transferFundsInWEth(listing[_id].currentBidder, donationInfo[_id].organizationThree , donationAmountThree);
-
-                }
-
-            return ( donationAmountThree.add(( donationAmountOne.add(donationAmountTwo))));
-        }
-
-    }
 
 
     function setPlatFormServiceFeePercentage(uint256 _serviceFeePercentage) external onlyOwner returns(uint256){
@@ -682,25 +528,17 @@ uint256 public amountSendToSeller;
         return serviceFeePercentage;
     }
 
-    // function calulateFee(uint256 _salePrice , uint256 _serviceFeePercentage) private pure returns(uint256){
-        
-    //     require(_salePrice !=0 , "Price of NFT can not be zero");
-    //     require(_serviceFeePercentage !=0 , "_PBP can not be zero");
-        
-    //     uint256 serviceFee = _salePrice.mul(_serviceFeePercentage).div(10000);
-        
-    //     return serviceFee;
-    // }
-
     function calulateFee(uint256 _salePrice , uint256 _serviceFeePercentage) private pure returns(uint256){
         
         require(_salePrice !=0 , "Price of NFT can not be zero");
         require(_serviceFeePercentage !=0 , "_PBP can not be zero");
         
-        uint256 serviceFee1 = _salePrice.mul(_serviceFeePercentage).div(10000);
+        uint256 serviceFee = _salePrice.mul(_serviceFeePercentage).div(10000);
         
-        return serviceFee1;
+        return serviceFee;
     }
+
+    
 
 
 
