@@ -95,8 +95,8 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         uint256 _tokenId,
         uint256 _noOfCopies,
         address _nftAddress,
-        address [] _organizations,
-        uint256 [] _donatePercentages
+        address[] memory _organizations,
+        uint256[] memory _donatePercentages
     ) external returns(uint256){
 
 
@@ -106,16 +106,9 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         require(_nftAddress != address(0), "Invalid address.");
         // require(_listStartTime >= block.timestamp && _listEndTime > block.timestamp ,
         //  "startTime and end time must be greater then currentTime");
+        require(_organizations.length >= 1 && _organizations.length <= 3,"you can chose one to three organizations.");
+        require(_organizations.length == _donatePercentages.length, "invalid organizations input.");
 
-        bool atleastOne;
-        for (uint256 i=0; i < _organizations.length; i++){
-            if(_organizations[i] != address(0)){
-                atleastOne = true; 
-            }
-        }
-
-        require(atleastOne, "You must have to chose atleast one organization.");
-        require(_organizations.length == _donatePercentages.length,"invalid input of organizations" );
         
         checkPercentage( _organizations, _donatePercentages);
 
@@ -145,7 +138,7 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
     }
 
-    function checkPercentage(address [] _organizations, uint256[] _percentages) private pure {
+    function checkPercentage(address [] memory _organizations, uint256[] memory _percentages) private pure {
         
         for (uint256 i=0; i < _organizations.length; i++){
             if(_organizations[i] != address(0)){
@@ -203,13 +196,12 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         if(_nftAddress != mintingContractAddress){
 
             setMintingAddress( _tokenId, _noOfCopies,  listId,  _nftAddress);
-
         }else{
 
             setMintingAddress( _tokenId, _noOfCopies,  listId,  mintingContractAddress); 
         }
 
-         return listId;
+        return listId;
 
    }
 
@@ -432,13 +424,7 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         
     }
 
-    function setDonationInfo(
-
-        uint256 _priceId,
-        address[] _organizations,
-        uint256 [] _donatePercentages
-
-        ) private {
+    function setDonationInfo(uint256 _priceId,address[] memory _organizations,uint256 [] memory _donatePercentages) private {
 
             for(uint256 i=0; i < _organizations.length; i++){
                 
@@ -449,7 +435,6 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
                 }
             }
         }
-    }
 
 
 
@@ -486,31 +471,19 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
     }
 
     function donationFeeTransfer(uint256 _id, bool _inEth) private returns (uint256) {
-    
-        address[3] memory organizations = [
-            donationInfo[_id].organizationOne,
-            donationInfo[_id].organizationTwo,
-            donationInfo[_id].organizationThree
-        ];
-
-        uint256[3] memory percentages = [
-            donationInfo[_id].donatePercentageOne,
-            donationInfo[_id].donatePercentageTwo,
-            donationInfo[_id].donatePercentageThree
-        ];
 
         uint256 totalDonationAmount = 0;
 
         for (uint256 i = 0; i < donationInfo[_id].noOfOrgazisations; i++) {
            
-            if (organizations[i] != address(0)) {
+            if ( donationInfo[_id].organizations[i] != address(0)) {
                
-                uint256 donationAmount = calulateFee(listing[_id].price, percentages[i]);
+                uint256 donationAmount = calulateFee(listing[_id].price,  donationInfo[_id].donatePercentages[i]);
                
                 if (_inEth) {
-                    transferFundsInEth(organizations[i], donationAmount);
+                    transferFundsInEth(donationInfo[_id].organizations[i], donationAmount);
                 } else {
-                    transferFundsInWEth(listing[_id].currentBidder, organizations[i], donationAmount);
+                    transferFundsInWEth(listing[_id].currentBidder, donationInfo[_id].organizations[i], donationAmount);
                 }
                 totalDonationAmount += donationAmount;
             }
@@ -572,7 +545,6 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         require(IERC1155Upgradeable(_nftAddress).balanceOf(msg.sender, _tokenid)>0 , "You are not the nftOwner of Token");
         _;
     }
-
 
 }
 
