@@ -82,13 +82,14 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
     mapping (uint256 => List) public listing;
     mapping (uint256 => DonationInfo) public donationInfo;
 
-
+    event Bided(address _currentBidder, uint256 _bidAmount);
+    event plateFarmFeePercentage(uint256 _serviceFeePercentage,address _owner);
+    event SoldNft(address _from,uint256 _tokenId,address _nftAddress,address _to,uint256 _noOfCopirs);
+    event FeeInfo(uint256 fiscalFee, uint256 royaltyFee,uint256 serviceFee,uint256 donationFee, uint256 amountSendToSeller);
 
     //--List item for list--------------------------------------------------------------------/
 
-   
-
-     function listForUsers(
+    function listForUsers(
         uint256 _initialPrice,
         uint256 _listStartTime,
         uint256 _listEndTime,
@@ -152,7 +153,7 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
     function BuyFixedPriceItem(uint256 _listId) payable external checkSell(_listId) whenNotPaused { 
 
         require(msg.value >=  listing[_listId].price,
-            "send wrong amount in fixed price");
+            "invalid fee.");
         
         require(listing[_listId].fixedPrice,"Its on auction!");
 
@@ -178,12 +179,6 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         transferFundsInEth(listing[_listId].nftOwner , amountSendToSeller);
         
         listing[_listId].nftClaimed = true;
-        
-        if(listing[_listId].currentBidAmount != 0){
-
-            transferFundsInEth(listing[_listId].currentBidder, listing[_listId].currentBidAmount);
-        }
-
 
         transferNft(
             listing[_listId].nftAddress,
@@ -192,7 +187,22 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
             listing[_listId].tokenId, 
             listing[_listId].noOfCopies
         );
+
+        emit SoldNft(
+            address(this),
+            listing[_listId].tokenId,
+            listing[_listId].nftAddress,
+            listing[_listId].currentBidder,
+            listing[_listId].noOfCopies);
+
+        emit FeeInfo(
+            fiscalFee,
+            royaltyFee,
+            serviceFee,
+            donationFee,
+            amountSendToSeller);
     }
+
 
 
     function startBid( uint256 _listId, uint256 _bidPrice)  external checkSell(_listId) whenNotPaused {
@@ -219,9 +229,9 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         listing[_listId].currentBidder = msg.sender;
         listing[_listId].currentBidAmount = _bidPrice;
 
+        emit Bided(listing[_listId].currentBidder,listing[_listId].currentBidAmount);
+
     }
-
-
 
     function acceptOffer(uint256 _listId) external checkSell(_listId) whenNotPaused {
 
@@ -247,14 +257,27 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
         listing[_listId].nftClaimed = true;
 
-
         transferNft(
             listing[_listId].nftAddress,
             address(this),
             listing[_listId].currentBidder, 
             listing[_listId].tokenId, 
             listing[_listId].noOfCopies
-        );               
+        ); 
+
+        emit SoldNft(
+            address(this),
+            listing[_listId].tokenId,
+            listing[_listId].nftAddress,
+            listing[_listId].currentBidder,
+            listing[_listId].noOfCopies);
+
+        emit FeeInfo(
+            fiscalFee,
+            royaltyFee,
+            serviceFee,
+            donationFee,
+            amountSendToSeller);              
     }
 
     function cancellListingForlist(uint256 _listingID) external {
@@ -269,27 +292,18 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
             listing[_listingID].tokenId, 
             listing[_listingID].noOfCopies
         );
-                
 
-        listing[_listingID].fixedPrice = false;
-        listing[_listingID].listed = false;
-        listing[_listingID].tokenId = 0;
-        listing[_listingID].noOfCopies = 0;
-        listing[_listingID].price = 0;
-        listing[_listingID].listingEndTime = 0;
-        listing[_listingID].listingStartTime = 0;
-        listing[_listingID].nftAddress = address(0);
-        listing[_listingID].currentBidAmount = 0;
-        listing[_listingID].currentBidder = address(0);
-        
+        setCancelList(_listingID);
     }
 
-    function setPlatFormServiceFeePercentage(uint256 _serviceFeePercentage) external onlyOwner returns(uint256){
+
+    function setPlatFormServiceFeePercentage(uint256 _serviceFeePercentage) external onlyOwner{
         require( _serviceFeePercentage >=100  && _serviceFeePercentage <= 1000, 
             "fee % must between in 1% to 10% ");
 
         serviceFeePercentage = _serviceFeePercentage;
-        return serviceFeePercentage;
+        
+        emit plateFarmFeePercentage(serviceFeePercentage,msg.sender);
     }
 
     function checkPercentage(address [] memory _organizations, uint256[] memory _percentages) private pure {
@@ -435,6 +449,18 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
     }
 
+    function setCancelList(uint256 _listingID) private {
+        listing[_listingID].fixedPrice = false;
+        listing[_listingID].listed = false;
+        listing[_listingID].tokenId = 0;
+        listing[_listingID].noOfCopies = 0;
+        listing[_listingID].price = 0;
+        listing[_listingID].listingEndTime = 0;
+        listing[_listingID].listingStartTime = 0;
+        listing[_listingID].nftAddress = address(0);
+        listing[_listingID].currentBidAmount = 0;
+        listing[_listingID].currentBidder = address(0);
+    }
 
     function calulateFee(uint256 _salePrice , uint256 _serviceFeePercentage) private pure returns(uint256){
         
