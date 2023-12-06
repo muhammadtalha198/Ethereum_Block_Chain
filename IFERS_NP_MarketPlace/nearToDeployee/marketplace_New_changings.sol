@@ -8,7 +8,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC1155/IERC1155Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/math/SafeMathUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC1155/utils/ERC1155HolderUpgradeable.sol";
-
+import "hardhat/console.sol";
 
 interface MintingContract{
 
@@ -84,9 +84,11 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
     event Bided(address _currentBidder, uint256 _bidAmount);
     event plateFarmFeePercentage(uint256 _serviceFeePercentage,address _owner);
-    event SoldNft(address _from,uint256 _tokenId,address _nftAddress,address _to,uint256 _noOfCopirs);
-    event FeeInfo(uint256 fiscalFee, uint256 royaltyFee,uint256 serviceFee,uint256 donationFee, uint256 amountSendToSeller);
-
+    event Edited (uint256 _initialPrice,uint256 _listStartTime,uint256 _listEndTime);
+    event SoldNft(address _from,uint256 indexed _tokenId,address indexed _nftAddress,address _to,uint256 _noOfCopirs);
+    event FeeInfo(uint256 fiscalFee, uint256 royaltyFee,uint256 indexed serviceFee,uint256 indexed donationFee, uint256 indexed amountSendToSeller);
+    
+    
     //--List item for list--------------------------------------------------------------------/
 
     function listForUsers(
@@ -98,13 +100,8 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         address _nftAddress,
         address[] memory _organizations,
         uint256[] memory _donatePercentages
-    ) external  returns(uint256){
+    ) external checkOrganizations( _organizations,_donatePercentages) returns(uint256){
 
-
-        require(_organizations.length >= 1 && _organizations.length <= 3,"you can chose one to three organizations.");
-        require(_organizations.length == _donatePercentages.length, "invalid organizations input.");
-
-        checkPercentage( _organizations, _donatePercentages);
         listId++;
         
         setListingInfo(_tokenId,_noOfCopies,_initialPrice,_listStartTime,_listEndTime,_nftAddress);    
@@ -120,6 +117,7 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
          return listId;
 
     }
+
    
     function listForOrganizations(
         uint256 _initialPrice,
@@ -147,6 +145,36 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         return listId;
 
    }
+
+    function editList(
+        uint256 _listId, 
+        uint256 _initialPrice,
+        uint256 _listStartTime,
+        uint256 _listEndTime ) external  {
+
+        require(_listId > 0,"inavlid list id");
+        require(listing[_listId].listed, "nft isnt listed yet.");
+        require(!listing[_listId].nftClaimed,"Nft already sold");
+        require(msg.sender == listing[_listId].nftOwner ,"onlynftOwner of this nft can edit.");
+
+
+        setListingInfo(
+            
+            listing[_listId].tokenId,
+            listing[_listId].noOfCopies,
+            _initialPrice,
+            _listStartTime,
+            _listEndTime,
+            listing[_listId].nftAddress
+        );
+        
+        emit Edited (
+            listing[_listId].price,
+            listing[_listId].listingStartTime,
+            listing[_listId].listingEndTime
+        );
+
+    }
 
   
     // Buy Fixed Price---------------------------------------------------------------------------------------------------
@@ -207,6 +235,7 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
     function startBid( uint256 _listId, uint256 _bidPrice)  external checkSell(_listId) whenNotPaused {
 
+        require(!listing[_listId].fixedPrice,"Its on fixedPrice!");
         require(_bidPrice > 0,"inavlid _bidPrice");
         require(wMatic.balanceOf(msg.sender) >= _bidPrice, 
             "insufficent balance.");
@@ -222,7 +251,6 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         require(wMatic.allowance(msg.sender, address(this)) >= _bidPrice,
             "you must have approve bidPrice before place bid");
         
-        require(!listing[_listId].fixedPrice,"Its on fixedPrice!");
 
         require(wMatic.allowance(msg.sender,address(this)) >= _bidPrice,"Approve that amount before bid.");
 
@@ -306,17 +334,6 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         emit plateFarmFeePercentage(serviceFeePercentage,msg.sender);
     }
 
-    function checkPercentage(address [] memory _organizations, uint256[] memory _percentages) private pure {
-        
-        for (uint256 i=0; i < _organizations.length; i++){
-            if(_organizations[i] != address(0)){
-
-                require(_percentages[i] >= 500 && _percentages[i] <= 10000,
-                    "donation percentage must be between 5 to 100");
-            }
-        } 
-
-    }
 
     function setDonationInfo(uint256 _priceId,address[] memory _organizations,uint256 [] memory _donatePercentages) private {
 
@@ -473,7 +490,10 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
     }
 
     function transferFundsInEth(address _recipient, uint256 _amount) private {
-         payable(_recipient).transfer(_amount); 
+
+        console.log("_recipient : ",_recipient);
+        console.log("_amount : ",_amount);
+        payable(_recipient).transfer(_amount); 
     }
 
     function transferFundsInWEth(address _src,address _recipient, uint256 _amount) private {
@@ -495,8 +515,23 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         override
     {} 
 
-    modifier OnlyTokenHolders(uint256 _tokenid , address _nftAddress){
-        require(IERC1155Upgradeable(_nftAddress).balanceOf(msg.sender, _tokenid)>0 , "You are not the nftOwner of Token");
+
+    modifier checkOrganizations(address[] memory _organizations,uint256[] memory _donatePercentages){
+            
+        require(_organizations.length >= 1 && _organizations.length <= 3,"you can chose one to three organizations.");
+        require(_organizations.length == _donatePercentages.length, "invalid organizations input.");
+        
+        bool atleastOne;
+        for(uint i=0; i < _organizations.length; i++){
+            if(_organizations[i] != address(0)){
+
+                require(_donatePercentages[i] >= 500 && _donatePercentages[i] <= 10000,
+                    "donation percentage must be between 5 to 100");
+                atleastOne = true;
+            }
+        }
+
+        require(atleastOne,"please select an organzation.");
         _;
     }
 
@@ -552,4 +587,4 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 // org2 = 0x583031D1113aD414F02576BD6afaBfb302140225
 // org3 = 0x4B0897b0513fdC7C541B6d9D7E929C4e5364D2dB
 // fiscl = 0x14723A09ACff6D2A60DcdF7aA4AFf308FDDC160C
-
+// 0xdDb68Efa4Fdc889cca414C0a7AcAd3C5Cc08A8C5
