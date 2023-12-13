@@ -8,13 +8,14 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC1155/IERC1155Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/math/SafeMathUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC1155/utils/ERC1155HolderUpgradeable.sol";
-import "hardhat/console.sol";
+
 
 interface MintingContract{
 
     function getMinterInfo(uint256 _tokenId) external view returns (uint256, address);
     function getFiscalSponsor(address _organizationAddress) external view returns (bool,uint256, address, address);
 }
+
 
 interface WMATIC {
     
@@ -23,7 +24,12 @@ interface WMATIC {
     function transferFrom(address src, address dst, uint wad) external returns (bool);
 }
 
-contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradeable, UUPSUpgradeable ,  PausableUpgradeable {
+contract Marketplace is 
+    Initializable, 
+    ERC1155HolderUpgradeable ,
+    OwnableUpgradeable, 
+    UUPSUpgradeable ,  
+    PausableUpgradeable {
 
     using SafeMathUpgradeable for uint256;
     MintingContract public mintingContract;
@@ -60,15 +66,16 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         bool listed;
         bool nftClaimed;
         bool fixedPrice;
-        uint256 price;   
+        uint256 price;
+        uint256 heighestBid;
         uint256 tokenId;
         uint256 noOfCopies;
         address nftOwner;
         address nftAddress;
         uint256 listingEndTime;      
         uint256 listingStartTime;
-        uint256 currentBidAmount;
-        address currentBidder;
+        uint256[] currentBidAmount;
+        address[] currentBidder;
     }
 
     struct DonationInfo{
@@ -78,16 +85,25 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         uint256[3] donatePercentages;
     }
 
+    struct BidInfo{
+
+        bool bided;
+        uint256 bidNo;
+    }
+
 
     mapping (uint256 => List) public listing;
     mapping (uint256 => DonationInfo) public donationInfo;
+    mapping (uint256 => mapping(address => BidInfo)) public bidInfo;
 
+
+    event CancelBid(bool bided);
     event Bided(address _currentBidder, uint256 _bidAmount);
     event plateFarmFeePercentage(uint256 _serviceFeePercentage,address _owner);
     event Edited (uint256 _initialPrice,uint256 _listStartTime,uint256 _listEndTime);
     event SoldNft(address _from,uint256 indexed _tokenId,address indexed _nftAddress,address _to,uint256 _noOfCopirs);
     event FeeInfo(uint256 fiscalFee, uint256 royaltyFee,uint256 indexed serviceFee,uint256 indexed donationFee, uint256 indexed amountSendToSeller);
-    
+    event Listed(uint256 _listId,uint256 _tokenId, uint256 _noOfCopies, uint256 _initialPrices);
     
     //--List item for list--------------------------------------------------------------------/
 
@@ -98,9 +114,9 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         uint256 _tokenId,
         uint256 _noOfCopies,
         address _nftAddress,
-        address[] memory _organizations,
-        uint256[] memory _donatePercentages
-    ) external checkOrganizations( _organizations,_donatePercentages) returns(uint256){
+        address[3] memory _organizations,
+        uint256[3] memory _donatePercentages
+    ) external checkOrganizations( _organizations,_donatePercentages) {
 
         listId++;
         
@@ -114,8 +130,12 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
             setMintingAddress( _tokenId, _noOfCopies,  listId,  mintingContractAddress); 
         }
 
-         return listId;
-
+        emit Listed(
+            listId,
+            _tokenId, 
+            _noOfCopies,
+            _initialPrice
+        );
     }
 
    
@@ -127,7 +147,7 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         uint256 _noOfCopies,
         address _nftAddress,
         address _fiscalSponsor
-    ) external checkFiscalSponsor(_fiscalSponsor) returns(uint256){
+    ) external checkFiscalSponsor(_fiscalSponsor){
 
        listId++;
 
@@ -142,7 +162,12 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
             setMintingAddress( _tokenId, _noOfCopies,  listId,  mintingContractAddress); 
         }
 
-        return listId;
+        emit Listed(
+            listId,
+            _tokenId, 
+            _noOfCopies,
+            _initialPrice
+        );
 
    }
 
@@ -186,7 +211,7 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         require(listing[_listId].fixedPrice,"Its on auction!");
 
 
-        listing[_listId].currentBidder = msg.sender;
+        listing[_listId].currentBidder.push(msg.sender);
         
         uint256 serviceFee = calulateFee(listing[_listId].price, serviceFeePercentage);
 
@@ -208,10 +233,16 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         
         listing[_listId].nftClaimed = true;
 
+        require(listing[_listId].currentBidder.length > 0, "No bidders");
+
+        // Retrieve the last address in the currentBidder array
+        address _currentBidder = listing[_listId].currentBidder[listing[_listId].currentBidder.length - 1];
+
+
         transferNft(
             listing[_listId].nftAddress,
             address(this),
-            listing[_listId].currentBidder, 
+            _currentBidder, 
             listing[_listId].tokenId, 
             listing[_listId].noOfCopies
         );
@@ -220,7 +251,7 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
             address(this),
             listing[_listId].tokenId,
             listing[_listId].nftAddress,
-            listing[_listId].currentBidder,
+            _currentBidder,
             listing[_listId].noOfCopies);
 
         emit FeeInfo(
@@ -243,30 +274,57 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         require(block.timestamp > listing[_listId].listingStartTime,
             "you canot bid before list started.");
 
-        uint256  currentBidAmount = listing[_listId].currentBidAmount;
-        
-        require(_bidPrice > currentBidAmount,
+        require(_bidPrice > listing[_listId].heighestBid,
             "There is already higer or equal bid exist" );
-
-        require(wMatic.allowance(msg.sender, address(this)) >= _bidPrice,
-            "you must have approve bidPrice before place bid");
-        
+       
+        if(_bidPrice > listing[_listId].heighestBid){
+            listing[_listId].heighestBid = _bidPrice;
+        }
 
         require(wMatic.allowance(msg.sender,address(this)) >= _bidPrice,"Approve that amount before bid.");
 
-        listing[_listId].currentBidder = msg.sender;
-        listing[_listId].currentBidAmount = _bidPrice;
+        if(bidInfo[_listId][msg.sender].bided){
+            cancelBid( _listId);
+        }
+       
+        listing[_listId].currentBidder.push(msg.sender);
+        listing[_listId].currentBidAmount.push(_bidPrice);
+        bidInfo[_listId][msg.sender].bidNo = listing[_listId].currentBidder.length;
+        bidInfo[_listId][msg.sender].bided = true;
 
-        emit Bided(listing[_listId].currentBidder,listing[_listId].currentBidAmount);
+        emit Bided(listing[_listId].currentBidder[listing[_listId].currentBidder.length - 1],listing[_listId].currentBidAmount[listing[_listId].currentBidAmount.length - 1]);
 
     }
+
+    function cancelBid(uint256 _listId) public   {
+
+        require(_listId > 0,"inavlid list id");
+        require(listing[_listId].listed, "nft isnt listed yet.");
+        require(!listing[_listId].nftClaimed,"Nft already sold");
+        require(bidInfo[_listId][msg.sender].bided,"You didndt Bid.");
+
+        bidInfo[_listId][msg.sender].bided = false;
+        
+        uint256 _bidNo = bidInfo[_listId][msg.sender].bidNo;
+
+        listing[_listId].currentBidAmount[_bidNo] = 0;
+        listing[_listId].currentBidder[_bidNo] = address(0);
+
+        emit CancelBid(bidInfo[_listId][msg.sender].bided);
+    }
+
+
 
     function acceptOffer(uint256 _listId) external checkSell(_listId) whenNotPaused {
 
 
         require(!listing[_listId].fixedPrice,"Its on fixedPrice!");
+
+        require(listing[_listId].currentBidAmount.length > 0, "Array is empty");
+        
+        uint256  _currentBidAmount =  listing[_listId].currentBidAmount[listing[_listId].currentBidAmount.length - 1];
    
-        uint256 serviceFee = calulateFee(listing[_listId].currentBidAmount, serviceFeePercentage);
+        uint256 serviceFee = calulateFee(_currentBidAmount, serviceFeePercentage);
         
         uint256 donationFee;
 
@@ -278,17 +336,18 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         uint256 fiscalFee = getFiscalFee(_listId);
         uint256 royaltyFee = getRoyalityFee(_listId);
 
-        uint256 amountSendToSeller = listing[_listId].currentBidAmount.sub((((serviceFee.add(donationFee)).add(fiscalFee)).add(royaltyFee)));
+        uint256 amountSendToSeller = _currentBidAmount.sub((((serviceFee.add(donationFee)).add(fiscalFee)).add(royaltyFee)));
 
-        transferFundsInWEth(listing[_listId].currentBidder,marketPlaceOwner ,serviceFee);
-        transferFundsInWEth(listing[_listId].currentBidder,listing[_listId].nftOwner , amountSendToSeller);
+        address _currentBidder = listing[_listId].currentBidder[listing[_listId].currentBidder.length - 1];
+        transferFundsInWEth(_currentBidder,marketPlaceOwner ,serviceFee);
+        transferFundsInWEth(_currentBidder,listing[_listId].nftOwner , amountSendToSeller);
 
         listing[_listId].nftClaimed = true;
 
         transferNft(
             listing[_listId].nftAddress,
             address(this),
-            listing[_listId].currentBidder, 
+            _currentBidder, 
             listing[_listId].tokenId, 
             listing[_listId].noOfCopies
         ); 
@@ -297,7 +356,7 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
             address(this),
             listing[_listId].tokenId,
             listing[_listId].nftAddress,
-            listing[_listId].currentBidder,
+           _currentBidder,
             listing[_listId].noOfCopies);
 
         emit FeeInfo(
@@ -335,7 +394,7 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
     }
 
 
-    function setDonationInfo(uint256 _priceId,address[] memory _organizations,uint256 [] memory _donatePercentages) private {
+    function setDonationInfo(uint256 _priceId,address[3] memory _organizations,uint256 [3] memory _donatePercentages) private {
 
         for(uint256 i=0; i < _organizations.length; i++){
             
@@ -377,20 +436,20 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         listing[listId].nftOwner = msg.sender;
     }
 
-    function donationFeeTransfer(uint256 _id, bool _inEth) private returns (uint256) {
+    function donationFeeTransfer(uint256 _listId, bool _inEth) private returns (uint256) {
 
         uint256 totalDonationAmount = 0;
 
-        for (uint256 i = 0; i < donationInfo[_id].noOfOrgazisations; i++) {
+        for (uint256 i = 0; i < donationInfo[_listId].noOfOrgazisations; i++) {
            
-            if ( donationInfo[_id].organizations[i] != address(0)) {
+            if ( donationInfo[_listId].organizations[i] != address(0)) {
                
-                uint256 donationAmount = calulateFee(listing[_id].price,  donationInfo[_id].donatePercentages[i]);
+                uint256 donationAmount = calulateFee(listing[_listId].price,  donationInfo[_listId].donatePercentages[i]);
                
                 if (_inEth) {
-                    transferFundsInEth(donationInfo[_id].organizations[i], donationAmount);
+                    transferFundsInEth(donationInfo[_listId].organizations[i], donationAmount);
                 } else {
-                    transferFundsInWEth(listing[_id].currentBidder, donationInfo[_id].organizations[i], donationAmount);
+                    transferFundsInWEth(listing[_listId].currentBidder[listing[_listId].currentBidder.length - 1], donationInfo[_listId].organizations[i], donationAmount);
                 }
                 totalDonationAmount += donationAmount;
             }
@@ -475,8 +534,9 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         listing[_listingID].listingEndTime = 0;
         listing[_listingID].listingStartTime = 0;
         listing[_listingID].nftAddress = address(0);
-        listing[_listingID].currentBidAmount = 0;
-        listing[_listingID].currentBidder = address(0);
+        listing[_listingID].nftOwner = address(0);
+        // listing[_listingID].currentBidAmount = 0;
+        // listing[_listingID].currentBidder = address(0);
     }
 
     function calulateFee(uint256 _salePrice , uint256 _serviceFeePercentage) private pure returns(uint256){
@@ -491,8 +551,8 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 
     function transferFundsInEth(address _recipient, uint256 _amount) private {
 
-        console.log("_recipient : ",_recipient);
-        console.log("_amount : ",_amount);
+        // console.log("_recipient : ",_recipient);
+        // console.log("_amount : ",_amount);
         payable(_recipient).transfer(_amount); 
     }
 
@@ -516,9 +576,9 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
     {} 
 
 
-    modifier checkOrganizations(address[] memory _organizations,uint256[] memory _donatePercentages){
+    modifier checkOrganizations(address[3] memory _organizations,uint256[3] memory _donatePercentages){
             
-        require(_organizations.length >= 1 && _organizations.length <= 3,"you can chose one to three organizations.");
+        // require(_organizations.length >= 1 && _organizations.length <= 3,"you can chose one to three organizations.");
         require(_organizations.length == _donatePercentages.length, "invalid organizations input.");
         
         bool atleastOne;
@@ -531,7 +591,7 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
             }
         }
 
-        require(atleastOne,"please select an organzation.");
+        require(atleastOne,"select an organzation.");
         _;
     }
 
@@ -550,7 +610,7 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         
         if (_listStartTime != 0 && _listEndTime != 0 ){
 
-            require(_listStartTime >= block.timestamp && _listEndTime > block.timestamp ,
+            require(_listStartTime >= block.timestamp && _listEndTime > _listStartTime,
             "startTime and end time must be greater then currentTime");
         }
         _;        
@@ -575,10 +635,17 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
         
         if(_haveSponsor){
             require(_fiscalSponsor == _previousFiscalSponser, "You are a malacious User.");
-            require(_fiscalSponsorPercentage != 0, "Your Fiscal Sponsor didnt set fee Yet!");
+            // require(_fiscalSponsorPercentage != 0, "Your Fiscal Sponsor didnt set fee Yet!");
         }
         _;
     }
+
+    function approve(address _nftAddressAddress) external {
+
+        // ERC721()
+
+    }
+
 }
 
 // 0x0000000000000000000000000000000000000000
@@ -588,3 +655,6 @@ contract Marketplace is Initializable, ERC1155HolderUpgradeable ,OwnableUpgradea
 // org3 = 0x4B0897b0513fdC7C541B6d9D7E929C4e5364D2dB
 // fiscl = 0x14723A09ACff6D2A60DcdF7aA4AFf308FDDC160C
 // 0xdDb68Efa4Fdc889cca414C0a7AcAd3C5Cc08A8C5
+
+//  mint :0xd8b934580fcE35a11B58C6D73aDeE468a2833fa8
+
