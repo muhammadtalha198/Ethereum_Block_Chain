@@ -8,7 +8,9 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC1155/IERC1155Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/math/SafeMathUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC1155/utils/ERC1155HolderUpgradeable.sol";
+import "hardhat/console.sol";
 
+// console.log("",);
 
 interface MintingContract{
 
@@ -16,13 +18,6 @@ interface MintingContract{
     function getFiscalSponsor(address _organizationAddress) external view returns (bool,uint256, address, address);
 }
 
-// interface ERC721{
-
-//     function balanceOf(address owner) external view returns (uint256 balance);
-//     function ownerOf(uint256 tokenId) external view returns (address owner);
-//     function safeTransferFrom(address from, address to, uint256 tokenId) external;
-//     function approve(address to, uint256 tokenId) external;
-// }
 
 interface WMATIC {
     
@@ -43,7 +38,7 @@ contract Marketplace is
     WMATIC public wMatic; 
     
     uint256 public listId;
-    address public marketPlaceOwner;
+    address payable public marketPlaceOwner;
     uint256 public serviceFeePercentage;
     address public mintingContractAddress;
 
@@ -55,7 +50,7 @@ contract Marketplace is
     function initialize(address _mintingContract,address _wrappedMaticAddress) initializer public {
 
         serviceFeePercentage = 250; 
-        marketPlaceOwner = msg.sender;
+        marketPlaceOwner = payable(msg.sender);
         mintingContractAddress = _mintingContract;
         mintingContract = MintingContract(_mintingContract);
         wMatic = WMATIC(_wrappedMaticAddress);
@@ -73,10 +68,12 @@ contract Marketplace is
         bool listed;
         bool nftClaimed;
         bool fixedPrice;
-        uint256 price;   
+        uint256 price;
+        uint256 heighestBid;
         uint256 tokenId;
         uint256 noOfCopies;
         address nftOwner;
+        address newOwner;
         address nftAddress;
         uint256 listingEndTime;      
         uint256 listingStartTime;
@@ -91,19 +88,25 @@ contract Marketplace is
         uint256[3] donatePercentages;
     }
 
+    struct BidInfo{
+
+        bool bided;
+        uint256 bidNo;
+    }
+
 
     mapping (uint256 => List) public listing;
-    mapping (uint256 => mapping(address => uint256)) public bidNo;
     mapping (uint256 => DonationInfo) public donationInfo;
+    mapping (uint256 => mapping(address => BidInfo)) public bidInfo;
 
 
-    event Bided(address _currentBidder, uint256 _bidAmount);
+    event CancelBid(bool bided, uint256 _heigestBidAmount);
+    event Bided(address _currentBidder, uint256 _bidAmount, uint256 __heigestBidAmount);
     event plateFarmFeePercentage(uint256 _serviceFeePercentage,address _owner);
     event Edited (uint256 _initialPrice,uint256 _listStartTime,uint256 _listEndTime);
     event SoldNft(address _from,uint256 indexed _tokenId,address indexed _nftAddress,address _to,uint256 _noOfCopirs);
     event FeeInfo(uint256 fiscalFee, uint256 royaltyFee,uint256 indexed serviceFee,uint256 indexed donationFee, uint256 indexed amountSendToSeller);
     event Listed(uint256 _listId,uint256 _tokenId, uint256 _noOfCopies, uint256 _initialPrices);
-    event donated(address _nftAddress, uint256 _nftId, address _from, address _to);
     
     //--List item for list--------------------------------------------------------------------/
 
@@ -210,39 +213,61 @@ contract Marketplace is
         
         require(listing[_listId].fixedPrice,"Its on auction!");
 
+        listing[_listId].newOwner = msg.sender;
 
-        listing[_listId].currentBidder.push(msg.sender);
+        console.log("no 1 ");
+
+        
+        console.log("listing[_listId].price: ", listing[_listId].price);
+        console.log("serviceFeePercentage: ", serviceFeePercentage);
         
         uint256 serviceFee = calulateFee(listing[_listId].price, serviceFeePercentage);
+
+        console.log("servic eFee : ", serviceFee);
 
         uint256 donationFee;
         
         if(donationInfo[_listId].noOfOrgazisations > 0){
 
-           donationFee =  donationFeeTransfer(_listId, true);    
+            console.log(" donationFee ", donationFee);
+
+           donationFee =  donationFeeTransfer(_listId, true); 
+
+            console.log("no 2 donationFee ", donationFee); 
+
         }
 
         uint256 fiscalFee = getFiscalFee(_listId);
+
+        console.log(" fiscalFee:  ", fiscalFee);
+        
         uint256 royaltyFee = getRoyalityFee(_listId);
 
+        console.log(" royaltyFee : ",royaltyFee);
 
+        console.log("listing[_listId].price: ", listing[_listId].price);
+       
         uint256 amountSendToSeller = listing[_listId].price.sub((((serviceFee.add(donationFee)).add(fiscalFee)).add(royaltyFee)));
 
-        transferFundsInEth(marketPlaceOwner ,serviceFee);
-        transferFundsInEth(listing[_listId].nftOwner , amountSendToSeller);
+
+        console.log("amountSendToSeller", amountSendToSeller);
+
+        transferFundsInEth(payable (marketPlaceOwner) ,serviceFee);
+
+        console.log("no 22222 ");
+        transferFundsInEth(payable(listing[_listId].nftOwner) , amountSendToSeller);
         
+
+        console.log("no 3333333 ");
+
         listing[_listId].nftClaimed = true;
 
-        require(listing[_listId].currentBidder.length > 0, "No bidders");
-
-        // Retrieve the last address in the currentBidder array
-        address _currentBidder = listing[_listId].currentBidder[listing[_listId].currentBidder.length - 1];
-
-
+        console.log("no 4444444 ");
+        
         transferNft(
             listing[_listId].nftAddress,
             address(this),
-            _currentBidder, 
+            listing[_listId].newOwner, 
             listing[_listId].tokenId, 
             listing[_listId].noOfCopies
         );
@@ -251,7 +276,7 @@ contract Marketplace is
             address(this),
             listing[_listId].tokenId,
             listing[_listId].nftAddress,
-            _currentBidder,
+            listing[_listId].newOwner,
             listing[_listId].noOfCopies);
 
         emit FeeInfo(
@@ -274,61 +299,158 @@ contract Marketplace is
         require(block.timestamp > listing[_listId].listingStartTime,
             "you canot bid before list started.");
 
-        require(listing[_listId].currentBidAmount.length > 0, "Array is empty");
-        
-        uint256  currentBidAmount =  listing[_listId].currentBidAmount[listing[_listId].currentBidAmount.length - 1];
-
-
-        require(_bidPrice > currentBidAmount,
+        require(_bidPrice > listing[_listId].heighestBid,
             "There is already higer or equal bid exist" );
+
+            console.log("_bidPrice: ",_bidPrice);
+       
+        if(_bidPrice > listing[_listId].heighestBid){
+            listing[_listId].heighestBid = _bidPrice;
+        }
+
+        console.log("listing[_listId].heighestBid: ",listing[_listId].heighestBid);
 
         require(wMatic.allowance(msg.sender,address(this)) >= _bidPrice,"Approve that amount before bid.");
 
+
+        console.log("bidInfo[_listId][msg.sender].bided ",bidInfo[_listId][msg.sender].bided);
+
+        if(bidInfo[_listId][msg.sender].bided){
+            cancelBid( _listId);
+            console.log("canceled:  ",true);
+
+        }
+
+         console.log("33333333:  ");
+       
         listing[_listId].currentBidder.push(msg.sender);
         listing[_listId].currentBidAmount.push(_bidPrice);
-        // bidOn[_listId][msg.sender] = listing[_listId].currentBidder.length;
 
-        emit Bided(listing[_listId].currentBidder[listing[_listId].currentBidder.length - 1],currentBidAmount);
+    console.log("listing[_listId].currentBidder:  ", listing[_listId].currentBidder.length);
+    console.log("listing[_listId].currentBidder:  ", listing[_listId].currentBidder.length - 1);
+    
+    console.log("listing[_listId].currentBidder:  ", listing[_listId].currentBidder[listing[_listId].currentBidder.length]);
+    console.log("listing[_listId].currentBidder:  ", listing[_listId].currentBidder[listing[_listId].currentBidder.length - 1]);
+
+
+    console.log("listing[_listId].currentBidder:  ", listing[_listId].currentBidAmount.length);
+     console.log("listing[_listId].currentBidder:  ", listing[_listId].currentBidAmount.length - 1);
+    
+        console.log("listing[_listId].currentBidder:  ", listing[_listId].currentBidAmount[listing[_listId].currentBidAmount.length]);
+        console.log("listing[_listId].currentBidder:  ", listing[_listId].currentBidAmount[listing[_listId].currentBidAmount.length - 1]);
+        
+        bidInfo[_listId][msg.sender].bidNo = listing[_listId].currentBidder.length;
+        bidInfo[_listId][msg.sender].bided = true;
+
+        console.log("listing[_listId].currentBidder:  ",  bidInfo[_listId][msg.sender].bidNo);
+
+
+        emit Bided(
+            listing[_listId].currentBidder[listing[_listId].currentBidder.length - 1],
+            listing[_listId].currentBidAmount[listing[_listId].currentBidAmount.length - 1],
+            listing[_listId].heighestBid
+            );
 
     }
 
-    function cancelOffer(uint256 _listId) external view  {
+    function cancelBid(uint256 _listId) public   {
 
         require(_listId > 0,"inavlid list id");
         require(listing[_listId].listed, "nft isnt listed yet.");
         require(!listing[_listId].nftClaimed,"Nft already sold");
-        require();
+        require(bidInfo[_listId][msg.sender].bided,"You didndt Bid.");
 
+        bidInfo[_listId][msg.sender].bided = false;
+        
+        uint256 _bidNo = bidInfo[_listId][msg.sender].bidNo;
+
+        listing[_listId].currentBidAmount[_bidNo] = 0;
+        listing[_listId].currentBidder[_bidNo] = address(0);
+       
+        if(listing[_listId].currentBidAmount[_bidNo] ==  listing[_listId].heighestBid){
+            
+            for(uint i = listing[_listId].currentBidAmount.length - 1; i >= 0; i--){
+                if(listing[_listId].currentBidAmount[i] != 0){
+                   listing[_listId].heighestBid =  listing[_listId].currentBidAmount[i];
+                   break;
+                }
+            }
+        }
+
+        emit CancelBid(bidInfo[_listId][msg.sender].bided, listing[_listId].heighestBid );
     }
 
-    function acceptOffer(uint256 _listId) external checkSell(_listId) whenNotPaused {
 
 
+    function acceptOffer(uint256 _listId, uint256 _bidNo) external  whenNotPaused {
+
+        require(_listId > 0,"inavlid list id");
+        require(listing[_listId].listed, "nft isnt listed yet.");
+        require(!listing[_listId].nftClaimed,"Nft already sold");
         require(!listing[_listId].fixedPrice,"Its on fixedPrice!");
 
-        require(listing[_listId].currentBidAmount.length > 0, "Array is empty");
+        console.log("no 1 ");
+
         
-        uint256  _currentBidAmount =  listing[_listId].currentBidAmount[listing[_listId].currentBidAmount.length - 1];
-   
-        uint256 serviceFee = calulateFee(_currentBidAmount, serviceFeePercentage);
+        console.log("listing[_listId].price: ", listing[_listId].price);
+        console.log("serviceFeePercentage: ", serviceFeePercentage);
+
+        uint256 serviceFee = calulateFee(listing[_listId].currentBidAmount[_bidNo], serviceFeePercentage);
         
+
+        console.log("servic eFee : ", serviceFee);
+
+
         uint256 donationFee;
 
         if(donationInfo[_listId].noOfOrgazisations > 0){
+
+             console.log(" donationInfo[_listId].noOfOrgazisations:  ", donationInfo[_listId].noOfOrgazisations);
            
             donationFee =  donationFeeTransfer(_listId, false);
+
+            console.log("no 2 donationFee ", donationFee);
         }
 
+
+
         uint256 fiscalFee = getFiscalFee(_listId);
+
+         console.log(" fiscalFee:  ", fiscalFee);
+
         uint256 royaltyFee = getRoyalityFee(_listId);
 
-        uint256 amountSendToSeller = _currentBidAmount.sub((((serviceFee.add(donationFee)).add(fiscalFee)).add(royaltyFee)));
+        console.log(" royaltyFee : ",royaltyFee);
 
-        address _currentBidder = listing[_listId].currentBidder[listing[_listId].currentBidder.length - 1];
+        console.log("listing[_listId].price: ", listing[_listId].price);
+
+        uint256 amountSendToSeller = listing[_listId].currentBidAmount[_bidNo].sub((((serviceFee.add(donationFee)).add(fiscalFee)).add(royaltyFee)));
+
+
+        console.log("amountSendToSeller", amountSendToSeller);
+
+
+        address _currentBidder = listing[_listId].currentBidder[_bidNo];
+
+        console.log("_currentBidder: ", _currentBidder);
+        console.log("marketPlaceOwner", marketPlaceOwner);
+        console.log("serviceFee", serviceFee);
+
+
         transferFundsInWEth(_currentBidder,marketPlaceOwner ,serviceFee);
+
+        console.log("no 22222 ");
         transferFundsInWEth(_currentBidder,listing[_listId].nftOwner , amountSendToSeller);
 
+
+        console.log("no 3333333 ");
+
         listing[_listId].nftClaimed = true;
+        listing[_listId].newOwner = _currentBidder;
+
+
+        console.log("no 4444444 ");
+
 
         transferNft(
             listing[_listId].nftAddress,
@@ -358,6 +480,8 @@ contract Marketplace is
         require(msg.sender == listing[_listingID].nftOwner , "You are not the nftOwner");
         require(!listing[_listingID].nftClaimed,"NFT is alrady sold,");
         
+        setCancelList(_listingID);
+        
         transferNft(
             listing[_listingID].nftAddress,
             address(this),
@@ -366,7 +490,6 @@ contract Marketplace is
             listing[_listingID].noOfCopies
         );
 
-        setCancelList(_listingID);
     }
 
 
@@ -433,13 +556,15 @@ contract Marketplace is
                 uint256 donationAmount = calulateFee(listing[_listId].price,  donationInfo[_listId].donatePercentages[i]);
                
                 if (_inEth) {
-                    transferFundsInEth(donationInfo[_listId].organizations[i], donationAmount);
+                    transferFundsInEth(payable(donationInfo[_listId].organizations[i]), donationAmount);
                 } else {
                     transferFundsInWEth(listing[_listId].currentBidder[listing[_listId].currentBidder.length - 1], donationInfo[_listId].organizations[i], donationAmount);
                 }
                 totalDonationAmount += donationAmount;
             }
         }
+
+        console.log("no 1 donationFee orignal: ", totalDonationAmount);
         return totalDonationAmount;
     }
 
@@ -456,7 +581,7 @@ contract Marketplace is
         if(_haveSponsor){
             
             fiscalFee = calulateFee(listing[_listId].price, _fiscalSponsorPercentage);
-            transferFundsInEth(_fiscalSponser,fiscalFee);
+            transferFundsInEth(payable(_fiscalSponser),fiscalFee);
         }
 
         return fiscalFee;
@@ -471,9 +596,11 @@ contract Marketplace is
             (uint256 _royaltyPercentage,address _royaltyReciver) = mintingContract.getMinterInfo(listing[_listId].tokenId);
 
             royaltyFee = calulateFee(listing[_listId].price, _royaltyPercentage);
-            transferFundsInEth(_royaltyReciver ,royaltyFee);
+            transferFundsInEth(payable(_royaltyReciver),royaltyFee);
 
         }
+
+        console.log("royaltyFee original : ", royaltyFee);
         return royaltyFee;
     }
 
@@ -501,6 +628,9 @@ contract Marketplace is
         uint256 _noOfcopies
     ) private {
 
+
+        console.log("TRANSFER ");
+
          IERC1155Upgradeable(_nftAddress).safeTransferFrom(
                 _from,
                 _to,
@@ -520,6 +650,7 @@ contract Marketplace is
         listing[_listingID].listingEndTime = 0;
         listing[_listingID].listingStartTime = 0;
         listing[_listingID].nftAddress = address(0);
+        listing[_listingID].nftOwner = address(0);
         // listing[_listingID].currentBidAmount = 0;
         // listing[_listingID].currentBidder = address(0);
     }
@@ -530,15 +661,62 @@ contract Marketplace is
         require(_serviceFeePercentage !=0 , "_PBP can not be zero");
         
         uint256 serviceFee = _salePrice.mul(_serviceFeePercentage).div(10000);
+
+        console.log("serviceFee origginal : ", serviceFee);
         
         return serviceFee;
     }
 
-    function transferFundsInEth(address _recipient, uint256 _amount) private {
+    function transferFundsInEth(address payable _recipient, uint256 _amount) private {
 
         // console.log("_recipient : ",_recipient);
         // console.log("_amount : ",_amount);
         payable(_recipient).transfer(_amount); 
+
+        //   (bool success, ) = _recipient.call{value: _amount}("");
+        // require(success, "Transfer failed");
+
+        // bool success = _recipient.send(_amount);
+        // require(success, "Transfer fee failed");
+    }
+
+    function transferFundsInEthTransfer(address payable _recipient, uint256 _amount) public payable{
+
+        // console.log("_recipient : ",_recipient);
+        // console.log("_amount : ",_amount);
+        payable(_recipient).transfer(_amount); 
+
+        //   (bool success, ) = _recipient.call{value: _amount}("");
+        // require(success, "Transfer failed");
+
+        // bool success = _recipient.send(_amount);
+        // require(success, "Transfer fee failed");
+    }
+
+     function transferFundsInEthCall(address payable _recipient, uint256 _amount) public payable {
+
+        // console.log("_recipient : ",_recipient);
+        // console.log("_amount : ",_amount);
+        // payable(_recipient).transfer(_amount); 
+
+          (bool success, ) = _recipient.call{value: _amount}("");
+        require(success, "Transfer failed");
+
+        // bool success = _recipient.send(_amount);
+        // require(success, "Transfer fee failed");
+    }
+
+     function transferFundsInEthSend(address payable _recipient, uint256 _amount) public  payable {
+
+        // console.log("_recipient : ",_recipient);
+        // console.log("_amount : ",_amount);
+        // payable(_recipient).transfer(_amount); 
+
+        //   (bool success, ) = _recipient.call{value: _amount}("");
+        // require(success, "Transfer failed");
+
+        bool success = _recipient.send(_amount);
+        require(success, "Transfer fee failed");
     }
 
     function transferFundsInWEth(address _src,address _recipient, uint256 _amount) private {
@@ -576,7 +754,7 @@ contract Marketplace is
             }
         }
 
-        require(atleastOne,"please select an organzation.");
+        require(atleastOne,"select an organzation.");
         _;
     }
 
@@ -595,7 +773,7 @@ contract Marketplace is
         
         if (_listStartTime != 0 && _listEndTime != 0 ){
 
-            require(_listStartTime >= block.timestamp && _listEndTime > block.timestamp ,
+            require(_listStartTime >= block.timestamp && _listEndTime > _listStartTime,
             "startTime and end time must be greater then currentTime");
         }
         _;        
@@ -620,33 +798,12 @@ contract Marketplace is
         
         if(_haveSponsor){
             require(_fiscalSponsor == _previousFiscalSponser, "You are a malacious User.");
-            require(_fiscalSponsorPercentage != 0, "Your Fiscal Sponsor didnt set fee Yet!");
+            // require(_fiscalSponsorPercentage != 0, "Your Fiscal Sponsor didnt set fee Yet!");
         }
         _;
     }
 
-    function approve(address _nftAddressAddress) external {
 
-        // ERC721()
-
-    }
-
-    // function donationNFT(address _nftAddress, uint256 _nftId,address _to, uint256 _noOfcopies) external {
-        
-    //     if(ERC721(_nftAddress).balanceOf(msg.sender) > 0){
-    //         require(ERC721(_nftAddress).ownerOf(_nftId) == msg.sender,"only owner can donate.");
-
-    //         ERC721(_nftAddress).approve(address(this),_nftId);
-    //         ERC721(_nftAddress).safeTransferFrom(msg.sender,_to,_nftId);
-    //     }
-    //     else{
-
-    //         transferNft(_nftAddress,msg.sender, _to, _nftId, _noOfcopies);
-
-    //     }
-        
-    //     emit donated(_nftAddress,_nftId,msg.sender,_to);
-    // }
 }
 
 // 0x0000000000000000000000000000000000000000
@@ -657,5 +814,5 @@ contract Marketplace is
 // fiscl = 0x14723A09ACff6D2A60DcdF7aA4AFf308FDDC160C
 // 0xdDb68Efa4Fdc889cca414C0a7AcAd3C5Cc08A8C5
 
-
+//  mint :0xd8b934580fcE35a11B58C6D73aDeE468a2833fa8
 
