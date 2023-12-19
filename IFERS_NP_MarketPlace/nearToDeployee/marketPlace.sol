@@ -8,13 +8,13 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC1155/IERC1155Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/math/SafeMathUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC1155/utils/ERC1155HolderUpgradeable.sol";
+import "hardhat/console.sol";
 
 interface MintingContract{
 
     function getMinterInfo(uint256 _tokenId) external view returns (uint256, address);
     function getFiscalSponsor(address _organizationAddress) external view returns (bool,uint256, address, address);
 }
-
 
 interface WMATIC {
     
@@ -100,7 +100,8 @@ contract Marketplace is
 
 
     event CancelBid(bool bided, uint256 _heigestBidAmount);
-    event Bided(address _currentBidder, uint256 _bidAmount, uint256 __heigestBidAmount);
+    event Bided(uint256 _bidNo, address _currentBidder, uint256 _bidAmount, uint256 __heigestBidAmount); 
+    event CancelList(address _listerAddress, uint256 _listingID, bool _isListed);
     event plateFarmFeePercentage(uint256 _serviceFeePercentage,address _owner);
     event Edited (uint256 _initialPrice,uint256 _listStartTime,uint256 _listEndTime);
     event SoldNft(address _from,uint256 indexed _tokenId,address indexed _nftAddress,address _to,uint256 _noOfCopirs);
@@ -260,7 +261,6 @@ contract Marketplace is
     }
 
 
-
     function startBid( uint256 _listId, uint256 _bidPrice)  external checkSell(_listId) whenNotPaused {
 
         require(!listing[_listId].fixedPrice,"Its on fixedPrice!");
@@ -294,6 +294,7 @@ contract Marketplace is
         bidder[_listId][listing[_listId].currentBidder.length] = msg.sender;
 
         emit Bided(
+            bidInfo[_listId][msg.sender].bidNo,
             listing[_listId].currentBidder[listing[_listId].currentBidder.length - 1],
             listing[_listId].currentBidAmount[listing[_listId].currentBidAmount.length - 1],
             listing[_listId].heighestBid
@@ -412,8 +413,6 @@ contract Marketplace is
         require(msg.sender == listing[_listingID].nftOwner , "You are not the nftOwner");
         require(!listing[_listingID].nftClaimed,"NFT is alrady sold,");
         
-        setCancelList(_listingID);
-        
         transferNft(
             listing[_listingID].nftAddress,
             address(this),
@@ -422,8 +421,11 @@ contract Marketplace is
             listing[_listingID].noOfCopies
         );
 
-    }
+        setCancelList(_listingID);
 
+        emit CancelList(msg.sender, _listingID, listing[_listingID].listed);
+
+    }
 
     function setPlatFormServiceFeePercentage(uint256 _serviceFeePercentage) external onlyOwner{
         require( _serviceFeePercentage >=100  && _serviceFeePercentage <= 1000, 
@@ -580,6 +582,7 @@ contract Marketplace is
     }
 
     function setCancelList(uint256 _listingID) private {
+
         listing[_listingID].fixedPrice = false;
         listing[_listingID].listed = false;
         listing[_listingID].tokenId = 0;
@@ -589,8 +592,7 @@ contract Marketplace is
         listing[_listingID].listingStartTime = 0;
         listing[_listingID].nftAddress = address(0);
         listing[_listingID].nftOwner = address(0);
-        // listing[_listingID].currentBidAmount = 0;
-        // listing[_listingID].currentBidder = address(0);
+
     }
 
     function calulateFee(uint256 _salePrice , uint256 _serviceFeePercentage) private pure returns(uint256){
@@ -717,6 +719,3 @@ contract Marketplace is
 // 0xdDb68Efa4Fdc889cca414C0a7AcAd3C5Cc08A8C5
 
 //  mint :0xd8b934580fcE35a11B58C6D73aDeE468a2833fa8
-
-
-
