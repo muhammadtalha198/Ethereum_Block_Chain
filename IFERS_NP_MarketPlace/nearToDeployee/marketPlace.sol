@@ -8,7 +8,6 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC1155/IERC1155Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/math/SafeMathUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC1155/utils/ERC1155HolderUpgradeable.sol";
-import "hardhat/console.sol";
 
 interface MintingContract{
 
@@ -264,7 +263,8 @@ contract Marketplace is
     function startBid( uint256 _listId, uint256 _bidPrice)  external checkSell(_listId) whenNotPaused {
 
         require(!listing[_listId].fixedPrice,"Its on fixedPrice!");
-        require(_bidPrice > 0,"inavlid _bidPrice");
+        require(_bidPrice > 0,"inavlid _bidPrice");  
+        require(wMatic.balanceOf(msg.sender) >= _bidPrice, "you donot have much balance.");
         
         require(block.timestamp > listing[_listId].listingStartTime,
             "you canot bid before list started.");
@@ -272,7 +272,7 @@ contract Marketplace is
         require(_bidPrice > listing[_listId].heighestBid,
             "There is already higer or equal bid exist" );
 
-       
+
         if(_bidPrice > listing[_listId].heighestBid){
             listing[_listId].heighestBid = _bidPrice;
         }
@@ -302,54 +302,46 @@ contract Marketplace is
 
     }
 
-    function cancelBid(uint256 _listId) public   {
 
-        require(_listId > 0,"inavlid list id");
-        require(listing[_listId].listed, "nft isnt listed yet.");
-        require(!listing[_listId].nftClaimed,"Nft already sold");
-        require(bidInfo[_listId][msg.sender].bided,"You didndt Bid.");
+    function cancelBid(uint256 _listId) public {
 
+        require(_listId > 0, "Invalid list id");
+        require(listing[_listId].listed, "NFT isn't listed yet.");
+        require(!listing[_listId].nftClaimed, "NFT already sold");
+        require(bidInfo[_listId][msg.sender].bided, "You didn't bid.");
 
         bidInfo[_listId][msg.sender].bided = false;
-        
+
         uint256 _bidNo = bidInfo[_listId][msg.sender].bidNo;
 
-        require(_bidNo > 0 && _bidNo <= listing[_listId].currentBidder.length, "Invalid bid number");
-        
+        uint256 _current = listing[_listId].currentBidder.length;
+
+        require(_bidNo > 0 && _bidNo <= _current, "Invalid bid number");
+
         if (listing[_listId].heighestBid == listing[_listId].currentBidAmount[_bidNo - 1]) {
             uint256 newHighestBid = 0;
 
-            listing[_listId].currentBidAmount[_bidNo - 1] = 0;
-            listing[_listId].currentBidder[_bidNo - 1] = address(0);
-
-            // Iterate through the bid amounts in reverse to find the new highest bid
-            for (uint256 i = listing[_listId].currentBidAmount.length - 1; i >= 0; i--) {
-
-                if (listing[_listId].currentBidAmount[i] > 0) {
-                    newHighestBid = listing[_listId].currentBidAmount[i];
+            for (uint256 i = _current - 1; int256(i) >= 0; i--) {
+                if (listing[_listId].currentBidAmount[uint256(i)] > 0) {
+                    newHighestBid = listing[_listId].currentBidAmount[uint256(i)];
                     break;
                 }
             }
 
-            // Update the highest bid
             listing[_listId].heighestBid = newHighestBid;
-        }
-        else{
 
-            listing[_listId].currentBidAmount[_bidNo - 1] = 0;
-            listing[_listId].currentBidder[_bidNo - 1] = address(0);
+        } 
+        
+        listing[_listId].currentBidAmount[_bidNo - 1] = 0;
+        listing[_listId].currentBidder[_bidNo - 1] = address(0);
 
-        }
-
-
-
-        // Reset bid information
         bidInfo[_listId][msg.sender].bided = false;
         bidInfo[_listId][msg.sender].bidNo = 0;
         bidder[_listId][_bidNo] = address(0);
- 
-        emit CancelBid(bidInfo[_listId][msg.sender].bided, listing[_listId].heighestBid );
-    }
+
+        emit CancelBid(bidInfo[_listId][msg.sender].bided, listing[_listId].heighestBid);
+}
+
 
 
 
@@ -719,3 +711,6 @@ contract Marketplace is
 // 0xdDb68Efa4Fdc889cca414C0a7AcAd3C5Cc08A8C5
 
 //  mint :0xd8b934580fcE35a11B58C6D73aDeE468a2833fa8
+
+
+
