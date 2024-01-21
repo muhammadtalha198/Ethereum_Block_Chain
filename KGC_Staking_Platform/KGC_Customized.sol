@@ -1,62 +1,65 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20BurnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
-
-
-contract KGCToken is ERC20, ERC20Burnable, Ownable {
+contract MyToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, ERC20PausableUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
     
-    uint256 public basePercent = 10;
+    uint256 public basePercent ;
     uint256 public maxBuyLimit;
     uint256 public maxWalletLimit;
     uint256 public _maxBurning;
     uint256 public _totalBurning;
-
-
+    
     mapping(address => bool) private blackListed;
     
-    constructor(address initialOwner)
-        ERC20("KGCToken", "KGC")
-        Ownable(initialOwner){
-
-            _mint(initialOwner,99000 * 1e18 );
-            _maxBurning = 9000 * 1e18; 
-            maxBuyLimit = 10000 * 1e18; 
-            maxWalletLimit = 10000 * 1e18; 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
     }
+
+    function initialize(address initialOwner) initializer public {
+        __ERC20_init("KGCToken", "KGC");
+        __ERC20Burnable_init();
+        __ERC20Pausable_init();
+        __Ownable_init(initialOwner);
+        __UUPSUpgradeable_init();
+
+
+        basePercent = 10;
+        _mint(initialOwner,99000 * 1e18 );
+        _maxBurning = 9000 * 1e18; 
+        maxBuyLimit = 10000 * 1e18; 
+        maxWalletLimit = 10000 * 1e18;
+    }
+
 
     function transfer(address to, uint256 value) public virtual override returns (bool) {
             
         address owner = _msgSender();
-
-        require(!blackListed[owner], "You are blacklisted.");
-        require(!blackListed[to], "blacklisted address canot be able to recieve tokens.");
-
-        require(value <= maxBuyLimit, "You are exceeding maxBuyLimit");
-        require(balanceOf(to) + value <= maxWalletLimit,"Receiver are exceeding maxWalletLimit");
-
-        uint256 tokensAfterBurn;
-	
-        if( _totalBurning < _maxBurning){
-
-             tokensAfterBurn = _burnBasePercentage(value);
-            _totalBurning += tokensAfterBurn;
-        }
-
-        _burn(to,tokensAfterBurn);
-        _transfer(owner, to, value);
+        bool callSuccess = transferCall(owner,to,value);
+        require(callSuccess, "Transfer failed");
+        
         return true;
     }
 
-     function transferFrom(address from, address to, uint256 value) public virtual override returns (bool) {
+    function transferFrom(address from, address to, uint256 value) public virtual override returns (bool) {
         
         address spender = _msgSender();
-
         _spendAllowance(from, spender, value);
+        bool callSuccess = transferCall(from,to,value);
+        require(callSuccess, "Transfer failed");
+        
+        return true;
+    }
 
+    function transferCall(address from, address to, uint256 value) private returns (bool){
+        
         require(!blackListed[from], "You are blacklisted.");
         require(!blackListed[to], "blacklisted address canot be able to recieve tokens.");
 
@@ -71,10 +74,8 @@ contract KGCToken is ERC20, ERC20Burnable, Ownable {
             _totalBurning += tokensAfterBurn;
         }
 
-    
-        _burn(to,tokensAfterBurn);
-
         _transfer(from, to, value);
+        _burn(to,tokensAfterBurn);
         return true;
     }
 
@@ -131,18 +132,30 @@ contract KGCToken is ERC20, ERC20Burnable, Ownable {
         }
     }
 
-    // function rescueAnyBEP20Tokens(
-    //     address _tokenAddr,
-    //     address to,
-    //     uint256 value
-    // ) public onlyOwner {
-    //     IBEP20(_tokenAddr).transfer(to, value);
-    // }
+    function pause() public onlyOwner {
+        _pause();
+    }
 
+    function unpause() public onlyOwner {
+        _unpause();
+    }
 
+    function mint(address to, uint256 amount) public onlyOwner {
+        _mint(to, amount);
+    }
+
+    function _authorizeUpgrade(address newImplementation)
+        internal
+        onlyOwner
+        override
+    {}
+
+    // The following functions are overrides required by Solidity.
+
+    function _update(address from, address to, uint256 value)
+        internal
+        override(ERC20Upgradeable, ERC20PausableUpgradeable)
+    {
+        super._update(from, to, value);
+    }
 }
-
-// 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4
-// 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2
-// 0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db
-// 0x78731D3Ca6b7E34aC0F824c42a7cC18A495cabaB
