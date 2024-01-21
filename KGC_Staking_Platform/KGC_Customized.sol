@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "hardhat/console.sol";
+
 
 
 contract KGCToken is ERC20, ERC20Burnable, Ownable {
@@ -24,43 +24,65 @@ contract KGCToken is ERC20, ERC20Burnable, Ownable {
 
             _mint(initialOwner,99000 * 1e18 );
             _maxBurning = 9000 * 1e18; 
-        
             maxBuyLimit = 10000 * 1e18; 
             maxWalletLimit = 10000 * 1e18; 
     }
 
-    function _transfer(address _from, address _to, uint256 _amount) internal virtual override  {
-        
-        if (_from == address(0)) {
-            revert ERC20InvalidSender(address(0));
-        }
-        if (_to == address(0)) {
-            revert ERC20InvalidReceiver(address(0));
-        }
-        
-        require(!blackListed[_from], "You are blacklisted.");
-        require(!blackListed[_to], "blacklisted address canot be able to recieve tokens.");
+    function transfer(address to, uint256 value) public virtual override returns (bool) {
+            
+        address owner = _msgSender();
 
-        require(_amount <= maxBuyLimit, "You are exceeding maxBuyLimit");
-        require(balanceOf(_to) + _amount <= maxWalletLimit,"Receiver are exceeding maxWalletLimit");
+        require(!blackListed[owner], "You are blacklisted.");
+        require(!blackListed[to], "blacklisted address canot be able to recieve tokens.");
+
+        require(value <= maxBuyLimit, "You are exceeding maxBuyLimit");
+        require(balanceOf(to) + value <= maxWalletLimit,"Receiver are exceeding maxWalletLimit");
 
         uint256 tokensAfterBurn;
 	
         if( _totalBurning < _maxBurning){
 
-             tokensAfterBurn = _burnBasePercentage(_amount);
+             tokensAfterBurn = _burnBasePercentage(value);
             _totalBurning += tokensAfterBurn;
         }
 
-        _update(_from, _to, _amount);
-        _burn(_to,tokensAfterBurn);
+        _burn(to,tokensAfterBurn);
+        _transfer(owner, to, value);
+        return true;
+    }
+
+     function transferFrom(address from, address to, uint256 value) public virtual override returns (bool) {
         
+        address spender = _msgSender();
+
+        _spendAllowance(from, spender, value);
+
+        require(!blackListed[from], "You are blacklisted.");
+        require(!blackListed[to], "blacklisted address canot be able to recieve tokens.");
+
+        require(value <= maxBuyLimit, "You are exceeding maxBuyLimit");
+        require(balanceOf(to) + value <= maxWalletLimit,"Receiver are exceeding maxWalletLimit");
+
+        uint256 tokensAfterBurn;
+	
+        if( _totalBurning < _maxBurning){
+
+             tokensAfterBurn = _burnBasePercentage(value);
+            _totalBurning += tokensAfterBurn;
+        }
+
+    
+        _burn(to,tokensAfterBurn);
+
+        _transfer(from, to, value);
+        return true;
     }
 
 
-    function _burnBasePercentage(uint256 _amount) private view returns (uint256)  {
 
-        return ((_amount * basePercent)/(10000)); 
+    function _burnBasePercentage(uint256 value) private view returns (uint256)  {
+
+        return ((value * basePercent)/(10000)); 
     }
 
     function updateMaxBuyLimit(uint256 maxBuy) external onlyOwner {
@@ -109,7 +131,13 @@ contract KGCToken is ERC20, ERC20Burnable, Ownable {
         }
     }
 
-
+    // function rescueAnyBEP20Tokens(
+    //     address _tokenAddr,
+    //     address to,
+    //     uint256 value
+    // ) public onlyOwner {
+    //     IBEP20(_tokenAddr).transfer(to, value);
+    // }
 
 
 }
