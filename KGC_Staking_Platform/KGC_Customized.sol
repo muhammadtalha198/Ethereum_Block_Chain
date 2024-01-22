@@ -39,7 +39,7 @@ contract MyToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, E
     }
 
 
-    function transfer(address to, uint256 value) public virtual override returns (bool) {
+    function transfer(address to, uint256 value) public virtual override whenNotPaused returns (bool) {
             
         address owner = _msgSender();
         bool callSuccess = transferCall(owner,to,value);
@@ -48,7 +48,7 @@ contract MyToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, E
         return true;
     }
 
-    function transferFrom(address from, address to, uint256 value) public virtual override returns (bool) {
+    function transferFrom(address from, address to, uint256 value) public virtual override whenNotPaused returns (bool) {
         
         address spender = _msgSender();
         _spendAllowance(from, spender, value);
@@ -76,8 +76,24 @@ contract MyToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, E
 
         _transfer(from, to, value);
         _burn(to,tokensAfterBurn);
+        
         return true;
     }
+
+
+  function increaseAllowance(address owner, address spender, uint256 value) external {
+    
+    uint256 currentAllowance = allowance(owner, spender);
+    _approve(owner, spender, currentAllowance + value, true);
+    
+  }
+
+  function decreaseAllowance(address owner, address spender, uint256 value) external {
+
+    uint256 currentAllowance = allowance(owner, spender);
+    _approve(owner, spender, currentAllowance - value, true);
+    
+  }
 
 
 
