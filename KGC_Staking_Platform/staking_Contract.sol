@@ -5,7 +5,7 @@ import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "hardhat/console.sol";
+
 
 
 interface IBEP20 {        
@@ -16,31 +16,7 @@ interface IBEP20 {
     function transferFrom(address sender,address recipient,uint256 amount) external returns (bool);
 }
 
-contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
-    
-    
-    IBEP20 public kgcToken;
-    IBEP20 public usdtToken;
-
-
-    struct Stake {
-        uint256 stakeamount;
-        uint256 totalReward;
-        uint256 noOfRefferals;
-    }
-
-    struct ReferalPerson{
-        address referalAddress;
-        uint256 referalLevel;
-    }
-    
-    uint256 public registrerationFee;
-    uint256 public minimumAmount;
-    uint256 public maximumAmount;
-    uint256 public totalDuration;
-    uint256 public rewardLevelPercentages;
-
-    /*
+ /*
      level 1 =        50 %
      level 2 =        10  %    
      level 3 to 5 =    5 %
@@ -50,9 +26,35 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
     
     */
 
+contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
+    
+    
+    IBEP20 public kgcToken;
+    IBEP20 public usdtToken;
+
+
+    struct Stake {
+        uint256 stakeAmount;
+        uint256 totalReward;
+    }
+
+
+
+
+    
+    uint256 public registrerationFee;
+    uint256 public minimumAmount;
+    uint256 public maximumAmount;
+    uint256 public totalDuration;
+    uint256[] public rewardLevelPercentages;
+
+
+
+
+    
+    
+    
     mapping(address => Stake) public stakeInfo;
-    mapping(address => bool) public userRegistered;
-    mapping(uint256 => ReferalPerson) public referalPerson;
 
 
     event Registered(address registeredUser, uint256 fee);
@@ -75,29 +77,91 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
         minimumAmount = 2 * 1e18;
         maximumAmount = 50 * 1e18;
         totalDuration = 500 days;
+
+        setRewardPercentages();
     }
 
 
+    struct UserRegistered{
+        bool registered;
+        address directReferal;
+        mapping(uint256 => ReferalInfo) referalInfo;
+    }
+
+    struct ReferalInfo{
+        uint256 referalLevel;
+        address referalPerson;
+    }
+    
+    mapping(address => UserRegistered) public userRegistered;
+    mapping(address => mapping(address => bool)) public referrals;
 
 
-    function registerUser(uint256 _fee) external {
+
+    function registerUser(uint256 _fee, address referalAddress) external {
         
+        require(referalAddress != msg.sender && referalAddress != address(0), "invalid referal Address!");
         require (_fee >= registrerationFee, "Invalid fee.");
 
-        userRegistered[msg.sender] = true;
+
+
+        userRegistered[msg.sender].registered = true;
+
+        if(userRegistered[referalAddress].registered){
+             userRegistered[msg.sender][i] = userRegistered[referalAddress].directReferal;
+
+        }
+
+        for(uint256 i=0; i<userRegistered[msg.sender].noOfRefferals; i++){
+            userRegistered[msg.sender].referalInfo[i].referalLevel = i + 1;
+
+        }
+        
+        
+        
         usdtToken.transferFrom(msg.sender, owner(), _fee);
 
         emit Registered(msg.sender,_fee);
     }
 
-    function stakeTokens(uint256 _amount) external view {
+   
+   
+   
+   
+   
+   
+   
+   
+   
+    function stakeTokens(uint256 _amount, address referalAddress) external  {
         
         require(_amount >= minimumAmount && _amount <= maximumAmount, "invalid amount!");
-        require(userRegistered[msg.sender], "Plaese register!");
+        require(userRegistered[msg.sender].registered, "Plaese register!");
+
+        stakeInfo[msg.sender].stakeAmount = _amount;
+        stakeInfo[msg.sender].referalPerson = referalAddress;
+        stakeInfo[msg.sender].noOfRefferals += 1;
 
 
 
 
+
+
+    }
+
+
+
+
+
+
+    function setRewardPercentages() private {
+        
+        rewardLevelPercentages.push(50);  // 50%
+        rewardLevelPercentages.push(10);  // 10%
+        rewardLevelPercentages.push(5);   // 5%
+        rewardLevelPercentages.push(3);   // 3%
+        rewardLevelPercentages.push(2);   // 2%
+        rewardLevelPercentages.push(1);   // 1%
     }
 
 
@@ -115,4 +179,3 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
         override
     {}
 }
-
