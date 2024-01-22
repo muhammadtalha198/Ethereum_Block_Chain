@@ -11,7 +11,6 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 contract MyToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, ERC20PausableUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
     
     uint256 public basePercent ;
-    uint256 public maxBuyLimit;
     uint256 public maxWalletLimit;
     uint256 public _maxBurning;
     uint256 public _totalBurning;
@@ -33,8 +32,7 @@ contract MyToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, E
 
         basePercent = 10;
         _mint(initialOwner,99000 * 1e18 );
-        _maxBurning = 9000 * 1e18; 
-        maxBuyLimit = 10000 * 1e18; 
+        _maxBurning = 9000 * 1e18;  
         maxWalletLimit = 10000 * 1e18;
     }
 
@@ -62,8 +60,6 @@ contract MyToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, E
         
         require(!blackListed[from], "You are blacklisted.");
         require(!blackListed[to], "blacklisted address canot be able to recieve tokens.");
-
-        require(value <= maxBuyLimit, "You are exceeding maxBuyLimit");
         require(balanceOf(to) + value <= maxWalletLimit,"Receiver are exceeding maxWalletLimit");
 
         uint256 tokensAfterBurn;
@@ -81,29 +77,23 @@ contract MyToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, E
     }
 
 
-  function increaseAllowance(address owner, address spender, uint256 value) external {
-    
-    uint256 currentAllowance = allowance(owner, spender);
-    _approve(owner, spender, currentAllowance + value, true);
-    
-  }
+    function increaseAllowance(address owner, address spender, uint256 value) external {
+        
+        uint256 currentAllowance = allowance(owner, spender);
+        _approve(owner, spender, currentAllowance + value, true);
+        
+    }
 
-  function decreaseAllowance(address owner, address spender, uint256 value) external {
+    function decreaseAllowance(address owner, address spender, uint256 value) external {
 
-    uint256 currentAllowance = allowance(owner, spender);
-    _approve(owner, spender, currentAllowance - value, true);
-    
-  }
-
-
+        uint256 currentAllowance = allowance(owner, spender);
+        _approve(owner, spender, currentAllowance - value, true);
+        
+    }
 
     function _burnBasePercentage(uint256 value) private view returns (uint256)  {
 
         return ((value * basePercent)/(10000)); 
-    }
-
-    function updateMaxBuyLimit(uint256 maxBuy) external onlyOwner {
-        maxBuyLimit = maxBuy * 1e18;
     }
 
     function updateMaxWalletlimit(uint256 amount) external onlyOwner {
