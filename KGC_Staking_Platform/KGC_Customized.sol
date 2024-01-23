@@ -49,9 +49,21 @@ contract MyToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, E
     function transferFrom(address from, address to, uint256 value) public virtual override whenNotPaused returns (bool) {
         
         address spender = _msgSender();
-        _spendAllowance(from, spender, value);
+        
+        require(value <= allowance(from, spender), "you are not allowed allowance ");
+       
         bool callSuccess = transferCall(from,to,value);
         require(callSuccess, "Transfer failed");
+        
+        return true;
+    }
+
+
+    function approve(address spender, uint256 value) public virtual override returns (bool) {
+        
+        address owner = _msgSender();
+        uint256 currentAllowance = allowance(owner, spender);
+        _approve(owner, spender, currentAllowance + value, true);
         
         return true;
     }
@@ -68,20 +80,14 @@ contract MyToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, E
 
              tokensAfterBurn = _burnBasePercentage(value);
             _totalBurning += tokensAfterBurn;
+            _transfer(from, to, value);
+            _burn(to,tokensAfterBurn);
+        }
+        else{
+            _transfer(from, to, value);
         }
 
-        _transfer(from, to, value);
-        _burn(to,tokensAfterBurn);
-        
         return true;
-    }
-
-
-    function increaseAllowance(address owner, address spender, uint256 value) external {
-        
-        uint256 currentAllowance = allowance(owner, spender);
-        _approve(owner, spender, currentAllowance + value, true);
-        
     }
 
     function decreaseAllowance(address owner, address spender, uint256 value) external {
@@ -97,14 +103,13 @@ contract MyToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, E
     }
 
     function updateMaxWalletlimit(uint256 amount) external onlyOwner {
-        maxWalletLimit = amount * 1e18;
+        maxWalletLimit = amount;
     }
     
-    function updateMaxBurning(uint256 burnAmount) external onlyOwner {
-      
-        uint256 burnToken = burnAmount  * 1e18;    
-        if(burnToken < totalSupply()){      
-            _maxBurning = burnToken;
+    function updateMaxBurning(uint256 burnAmount) external onlyOwner {    
+        
+        if(burnAmount < totalSupply()){      
+            _maxBurning = burnAmount;
         }
     }
 
@@ -144,10 +149,6 @@ contract MyToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, E
 
     function unpause() public onlyOwner {
         _unpause();
-    }
-
-    function mint(address to, uint256 amount) public onlyOwner {
-        _mint(to, amount);
     }
 
     function _authorizeUpgrade(address newImplementation)
