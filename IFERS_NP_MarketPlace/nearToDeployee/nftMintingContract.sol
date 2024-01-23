@@ -143,8 +143,8 @@ contract MyToken is Initializable, ERC1155Upgradeable, ERC1155PausableUpgradeabl
         
         require(fiscalSponsor[msg.sender].haveFiscalSponsor,"must have a fiscal sponsor!");
 
-        fiscalSponsor[msg.sender].fiscalSponsorOf = _fiscalSponsorAddress;
-        fiscalSponsor[msg.sender].fiscalSponsor = msg.sender;
+        fiscalSponsor[msg.sender].fiscalSponsorOf = msg.sender;
+        fiscalSponsor[msg.sender].fiscalSponsor = _fiscalSponsorAddress;
 
         emit ChangeFiscalSponser(msg.sender, _fiscalSponsorAddress);
     }
