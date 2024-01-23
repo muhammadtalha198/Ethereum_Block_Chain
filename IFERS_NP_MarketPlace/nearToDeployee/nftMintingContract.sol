@@ -1,5 +1,4 @@
 
-
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
@@ -36,13 +35,15 @@ contract MyToken is Initializable, ERC1155Upgradeable, ERC1155PausableUpgradeabl
 
     mapping (uint256 => MinterInfo) public minterInfo;
     mapping (address => FiscalSponsor) public fiscalSponsor;
+    mapping(address => mapping(address => mapping(uint256 => uint256))) public _allowances;
 
+    event  ApprovalAmount(address _owner, address _spender, uint256 _amount);
+    event SpendAllowance(address _owner, address _spender,  uint256 nftId, uint256 allowedAmount);
     event Mints(address minter,uint256 tokenid,uint256 amount,string tokenUri);
     event BatchMints(address minter,uint256[] tokenid,uint256[] amount,string[] tokenUris);
-    event SetRoyalityFee(address nftOwner,uint256 royaltyPercentage);
+    event  ChangeFiscalSponser(address organizationAddress, address  _fiscalSponsorAddress);
+    // event SetRoyalityFee(address nftOwner,uint256 royaltyPercentage);
     event SetFiscalFee(address fiscalAddress, uint256 feePercentage);
-    event ChangeFiscalFee(address fiscalAddress, bool _changed);
-    event ChangeFiscalSponsor(address _organization, address _fiscalSponsor);
     
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -138,6 +139,16 @@ contract MyToken is Initializable, ERC1155Upgradeable, ERC1155PausableUpgradeabl
         return tokenids;
     }
 
+    function changeFiscalSponsor(address _fiscalSponsorAddress) external {
+        
+        require(fiscalSponsor[msg.sender].haveFiscalSponsor,"must have a fiscal sponsor!");
+
+        fiscalSponsor[msg.sender].fiscalSponsorOf = _fiscalSponsorAddress;
+        fiscalSponsor[msg.sender].fiscalSponsor = msg.sender;
+
+        emit ChangeFiscalSponser(msg.sender, _fiscalSponsorAddress);
+    }
+
     function setFiscalSponsorPercentage(address organizationAddress,uint256 _fiscalSponsorPercentage) external {
         
         require(_fiscalSponsorPercentage >= 100  && _fiscalSponsorPercentage <= 1000 , 
@@ -150,36 +161,6 @@ contract MyToken is Initializable, ERC1155Upgradeable, ERC1155PausableUpgradeabl
 
         emit SetFiscalFee(msg.sender, _fiscalSponsorPercentage);
     }
-
-    function RemoveSponsorPercentage() external {
-
-        require(fiscalSponsor[msg.sender].fiscalSponsorPercentage != 0,
-             "Fee percentage isnt set yet.");
-        
-        require(fiscalSponsor[msg.sender].haveFiscalSponsor,
-            "No fiscal sponsor against this organization.");
-
-        require(fiscalSponsor[msg.sender].fiscalSponsorOf == msg.sender,
-            "You canot change the fiscal Sponsor fee Percentage.");
-
-        fiscalSponsor[msg.sender].fiscalSponsorPercentage = 0;
-        
-        emit ChangeFiscalFee(msg.sender, true);
-    }
-
-    function changeFiscalSponsor(address _fiscalSponsorAddress) external {
-        
-        require(fiscalSponsor[msg.sender].haveFiscalSponsor,
-            "No fiscal sponsor against this organization.");
-
-        require(fiscalSponsor[msg.sender].fiscalSponsorOf == msg.sender,
-            "You canot change the fiscal Sponsor.");
-
-        fiscalSponsor[msg.sender].fiscalSponsor = _fiscalSponsorAddress;
-        fiscalSponsor[msg.sender].fiscalSponsorPercentage = 0;
-
-        emit ChangeFiscalSponsor(msg.sender, _fiscalSponsorAddress);
-    }
     
 
     function _setURI(uint256 _tokenId,string memory newuri) private {
@@ -190,6 +171,37 @@ contract MyToken is Initializable, ERC1155Upgradeable, ERC1155PausableUpgradeabl
 
         string memory currentBaseURI = minterInfo[_tokenId]._tokenURIs;
         return string(abi.encodePacked(currentBaseURI));
+    }
+
+    function approveAmount(address _owner, address _spender, uint256 id, uint256 amount) external {
+       
+        require(_spender != address(0), "ERC1155: approve to the zero address");
+        require(amount <= balanceOf(_owner, id), "you donot have sufficent amount of balance.");
+
+        _allowances[msg.sender][_spender][id] += amount;
+        
+        emit ApprovalAmount(_owner, _spender,  _allowances[msg.sender][_spender][id]);
+    }
+
+    function safeTransferFrom(address from, address to, uint256 id, uint256 value, bytes memory data) public virtual override {
+        
+        address sender = _msgSender(); 
+        
+        if ((from != sender && !isApprovedForAll(from, sender) && value > _allowances[from][msg.sender][id])) {
+            
+            revert ERC1155MissingApprovalForAll(sender, from);
+        }
+        if(from != sender){
+            _spendAllowance(from,sender, id,value);
+        }
+       
+        _safeTransferFrom(from, to, id, value, data);
+    }
+
+    function _spendAllowance(address _owner, address _spender,  uint256 id, uint256 value) private  {
+       
+        _allowances[_owner][_spender][id] -= value;
+        emit SpendAllowance(_owner,_spender,id, _allowances[_owner][_spender][id]);
     }
 
 
