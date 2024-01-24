@@ -83,47 +83,59 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
 
 
     struct UserRegistered{
+        bool haveReferal;
         bool registered;
-        address directReferal;
-        mapping(uint256 => ReferalInfo) referalInfo;
+        uint256 noOfreferals;
+        mapping(uint256 => ReferalInfo) hasReferal;
     }
+        mapping(address => mapping(uint256 => address)) public  hasReferal1;
 
     struct ReferalInfo{
-        uint256 referalLevel;
         address referalPerson;
+        mapping(address => uint256) referalLevel;
     }
-    
+    mapping(address => mapping(uint256 =>mapping (address => uint256))) public  referalLevel1;
+
     mapping(address => UserRegistered) public userRegistered;
-    mapping(address => mapping(address => bool)) public referrals;
-
-
+    
 
     function registerUser(uint256 _fee, address referalAddress) external {
         
         require(referalAddress != msg.sender && referalAddress != address(0), "invalid referal Address!");
         require (_fee >= registrerationFee, "Invalid fee.");
 
-
-
+        userRegistered[msg.sender].haveReferal = true;
         userRegistered[msg.sender].registered = true;
 
-        if(userRegistered[referalAddress].registered){
-             userRegistered[msg.sender][i] = userRegistered[referalAddress].directReferal;
+
+        if(userRegistered[msg.sender].haveReferal){
+
+            if(!userRegistered[referalAddress].haveReferal){
+                userRegistered[msg.sender].noOfreferals = 1;
+                userRegistered[msg.sender].hasReferal[0].referalPerson = referalAddress;
+                userRegistered[msg.sender].hasReferal[0].referalLevel[referalAddress] = 1;
+                hasReferal1[msg.sender][0] = referalAddress;
+                referalLevel1[msg.sender][0][referalAddress] = 1;
+            }else{
+                uint256 previousReferal = userRegistered[msg.sender].noOfreferals;
+                previousReferal += 1;
+                for(uint256 i=0; i < previousReferal; i++){
+                    userRegistered[msg.sender].hasReferal[i].referalPerson = userRegistered[referalAddress].hasReferal[i].referalPerson;
+                    userRegistered[msg.sender].hasReferal[i].referalLevel[userRegistered[msg.sender].hasReferal[i].referalPerson] +=  userRegistered[referalAddress].hasReferal[i].referalLevel[i];
+                    hasReferal1[msg.sender][i] = hasReferal1[referalAddress][i];
+                    
+                    referalLevel1[msg.sender][i][hasReferal1[msg.sender][i]] = 
+                }
+            }
 
         }
 
-        for(uint256 i=0; i<userRegistered[msg.sender].noOfRefferals; i++){
-            userRegistered[msg.sender].referalInfo[i].referalLevel = i + 1;
-
-        }
-        
-        
-        
-        usdtToken.transferFrom(msg.sender, owner(), _fee);
-
-        emit Registered(msg.sender,_fee);
     }
 
+
+
+        // emit Registered(msg.sender,_fee);
+
    
    
    
@@ -133,21 +145,21 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
    
    
    
-    function stakeTokens(uint256 _amount, address referalAddress) external  {
+    // function stakeTokens(uint256 _amount, address referalAddress) external  {
         
-        require(_amount >= minimumAmount && _amount <= maximumAmount, "invalid amount!");
-        require(userRegistered[msg.sender].registered, "Plaese register!");
+    //     require(_amount >= minimumAmount && _amount <= maximumAmount, "invalid amount!");
+    //     require(userRegistered[msg.sender].registered, "Plaese register!");
 
-        stakeInfo[msg.sender].stakeAmount = _amount;
-        stakeInfo[msg.sender].referalPerson = referalAddress;
-        stakeInfo[msg.sender].noOfRefferals += 1;
-
-
+    //     stakeInfo[msg.sender].stakeAmount = _amount;
+    //     stakeInfo[msg.sender].referalPerson = referalAddress;
+    //     stakeInfo[msg.sender].noOfRefferals += 1;
 
 
 
 
-    }
+
+
+    // }
 
 
 
