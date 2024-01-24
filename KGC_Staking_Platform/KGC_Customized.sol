@@ -8,6 +8,7 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
+
 contract MyToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, ERC20PausableUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
     
     uint256 public basePercent ;
@@ -49,15 +50,12 @@ contract MyToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, E
     function transferFrom(address from, address to, uint256 value) public virtual override whenNotPaused returns (bool) {
         
         address spender = _msgSender();
-        
-        require(value <= allowance(from, spender), "you are not allowed allowance ");
-       
+        _spendAllowance(from, spender, value);
         bool callSuccess = transferCall(from,to,value);
         require(callSuccess, "Transfer failed");
         
         return true;
     }
-
 
     function approve(address spender, uint256 value) public virtual override returns (bool) {
         
@@ -90,11 +88,24 @@ contract MyToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, E
         return true;
     }
 
-    function decreaseAllowance(address owner, address spender, uint256 value) external {
-
-        uint256 currentAllowance = allowance(owner, spender);
-        _approve(owner, spender, currentAllowance - value, true);
+    function burn(uint256 value) public virtual override onlyOwner { 
+       
+        require(_totalBurning + value < _maxBurning,"Burning Limit exceeds!"); 
+        _totalBurning += value;
+        _burn(_msgSender(), value);
+    }
+    
+    function burnFrom(address account, uint256 value) public virtual override onlyOwner {
         
+        require(_totalBurning + value < _maxBurning,"Burning Limit exceeds!"); 
+        
+        _totalBurning += value;
+        _spendAllowance(account, _msgSender(), value);
+        _burn(account, value);
+    }
+
+    function decreaseAllowance(address spender, uint256 value) external {
+        _spendAllowance(msg.sender, spender, value); 
     }
 
     function _burnBasePercentage(uint256 value) private view returns (uint256)  {
@@ -143,6 +154,10 @@ contract MyToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, E
         }
     }
 
+    function mint(address to, uint256 amount) public onlyOwner {
+        _mint(to, amount);
+    }
+
     function pause() public onlyOwner {
         _pause();
     }
@@ -166,3 +181,11 @@ contract MyToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, E
         super._update(from, to, value);
     }
 }
+
+// 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2
+// 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4
+// 0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db
+// 0x78731D3Ca6b7E34aC0F824c42a7cC18A495cabaB
+
+// 0x617F2E2fD72FD9D5503197092aC168c91465E7f2
+//  0x03C6FcED478cBbC9a4FAB34eF9f40767739D1Ff7
