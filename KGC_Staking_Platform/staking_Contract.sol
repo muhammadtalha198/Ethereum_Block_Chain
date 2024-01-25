@@ -58,6 +58,7 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
 
 
     event Registered(address registeredUser, uint256 fee);
+    event Registered(address regissteredUser, address referalPerson, uint256 _fee);
 
     
     
@@ -94,6 +95,7 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
         address referalPerson;
         mapping(address => uint256) referalLevel;
     }
+
     mapping(address => mapping(uint256 =>mapping (address => uint256))) public  referalLevel1;
 
     mapping(address => UserRegistered) public userRegistered;
@@ -114,23 +116,35 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
                 userRegistered[msg.sender].noOfreferals = 1;
                 userRegistered[msg.sender].hasReferal[0].referalPerson = referalAddress;
                 userRegistered[msg.sender].hasReferal[0].referalLevel[referalAddress] = 1;
-                hasReferal1[msg.sender][0] = referalAddress;
-                referalLevel1[msg.sender][0][referalAddress] = 1;
+                
             }else{
                 uint256 previousReferal = userRegistered[msg.sender].noOfreferals;
-                previousReferal += 1;
+               
                 for(uint256 i=0; i < previousReferal; i++){
                     userRegistered[msg.sender].hasReferal[i].referalPerson = userRegistered[referalAddress].hasReferal[i].referalPerson;
-                    userRegistered[msg.sender].hasReferal[i].referalLevel[userRegistered[msg.sender].hasReferal[i].referalPerson] +=  userRegistered[referalAddress].hasReferal[i].referalLevel[i];
-                    hasReferal1[msg.sender][i] = hasReferal1[referalAddress][i];
-                    
-                    referalLevel1[msg.sender][i][hasReferal1[msg.sender][i]] = 
+                    userRegistered[msg.sender].hasReferal[i].referalLevel[userRegistered[msg.sender].hasReferal[i].referalPerson] =  
+                    (userRegistered[referalAddress].hasReferal[i].referalLevel[userRegistered[referalAddress].hasReferal[i].referalPerson] + 1);
+                    userRegistered[msg.sender].noOfreferals ++;
                 }
-            }
 
+                userRegistered[msg.sender].hasReferal[previousReferal].referalPerson = referalAddress;
+                userRegistered[msg.sender].hasReferal[previousReferal].referalLevel[referalAddress] = 1;
+            }
         }
 
     }
+
+// hasReferal1[msg.sender][0] = referalAddress;
+//                 referalLevel1[msg.sender][0][referalAddress] = 1;
+
+
+// hasReferal1[msg.sender][i] = hasReferal1[referalAddress][i];
+//                     referalLevel1[msg.sender][i][hasReferal1[msg.sender][i]] = 
+                    
+
+
+
+
 
 
 
