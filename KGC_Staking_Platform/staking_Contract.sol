@@ -5,6 +5,7 @@ import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/math/SafeMathUpgradeable.sol";
 import "hardhat/console.sol";
 
 
@@ -35,7 +36,7 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
     IBEP20 public kgcToken;
     IBEP20 public usdcToken;
     IPancakeRouter01 public pancakeRouter;
-
+    using SafeMathUpgradeable for uint256;
 
     uint256 public registrerationFee;
     uint256 public minimumAmount;
@@ -66,6 +67,7 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
     mapping(address => mapping(uint256 => mapping(address => uint256))) public referalPersonLevel;
     
     event Registered(address regissteredUser, address referalPerson, uint256 _fee);
+    event Staked(address _staker, uint256 _stakeAmount, address _directReferal, uint256 _directreferalBonus);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -136,13 +138,36 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
         require(_amount >= minimumAmount && _amount <= maximumAmount, "invalid amount!");
         require(userRegistered[msg.sender].registered, "Plaese register!");
 
-        uint256 kgcTokenAmount = getKGCAmount(_amount);
+        // uint256 kgcTokenAmount = getKGCAmount(_amount);
+        uint256 kgcTokenAmount = (_amount);
 
         require(kgcToken.balanceOf(msg.sender) >= kgcTokenAmount,"insufficient Kgc balancce.");
 
-        stakeInfo[msg.sender].stakeAmount = _amount;
+        stakeInfo[msg.sender].stakeAmount = kgcTokenAmount;
+        
+        address _referalPerson;
+        
+        if(userRegistered[msg.sender].haveReferal){
+           
+            uint256 referalPersonId = userRegistered[msg.sender].noOfreferals -=1;
+            _referalPerson = referalPerson[msg.sender][referalPersonId];
+            stakeInfo[_referalPerson].totalReferalReward += directReferalAmount(kgcTokenAmount);
+        }
 
+        kgcToken.transferFrom(msg.sender, address(this), kgcTokenAmount);
+
+        emit Staked(msg.sender, kgcTokenAmount, _referalPerson, directReferalAmount(kgcTokenAmount));
     }
+
+    function directReferalAmount(uint256 _totalStakeAmount) public pure returns(uint256) {
+        
+        require(_totalStakeAmount !=0 , "_totalStakeAmount can not be zero");
+        
+        uint256 serviceFee = _totalStakeAmount.mul(1000).div(10000);
+        
+        return serviceFee;
+    }
+    
 
     function getKGCAmount(uint256 _usdcAmount) public view returns(uint256){
         
@@ -207,7 +232,9 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
 // 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2
 // 0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db
 // 0x78731D3Ca6b7E34aC0F824c42a7cC18A495cabaB
-
+// 0x617F2E2fD72FD9D5503197092aC168c91465E7f2
+// 0x17F6AD8Ef982297579C203069C1DbfFE4348c372
+// 0x5c6B0f7Bf3E7ce046039Bd8FABdfD3f9F5021678
 
 // org1 = 0xdD870fA1b7C4700F2BD7f44238821C26f7392148
 // org2 = 0x583031D1113aD414F02576BD6afaBfb302140225
