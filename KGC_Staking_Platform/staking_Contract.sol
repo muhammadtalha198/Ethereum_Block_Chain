@@ -35,13 +35,16 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
     
     IBEP20 public kgcToken;
     IBEP20 public usdcToken;
-    IPancakeRouter01 public pancakeRouter;
+    IPancakeRouter01 public pancakeRouter;  
+    // address routeraddress = 0xD99D1c33F9fC3444f8101754aBC46c52416550D1; BNBTestNet : PancakeSwapV2
+
     using SafeMathUpgradeable for uint256;
 
     uint256 public registrerationFee;
     uint256 public minimumAmount;
     uint256 public maximumAmount;
-    uint256 public totalDuration;
+    uint256 public minimumWithdrawlAmount;
+    uint256 public directReferalPercentage;
     uint256[] public rewardLevelPercentages;
 
     address usdcAddress;
@@ -56,8 +59,12 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
     
     struct Stake {
         uint256 stakeAmount;
-        uint256 totalStakedReward;
-        uint256 totalReferalReward;
+        uint256 stakeEndTime;
+        uint256 stakeStartTime;
+        uint256 nextWithdrawTime;
+        uint256 stakedRewards;
+        uint256 referalRewards;
+        uint256 totalReward;
     }
    
    
@@ -84,13 +91,15 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
         registrerationFee = 5 * 1e18;
         minimumAmount = 2 * 1e18;
         maximumAmount = 50 * 1e18;
-        totalDuration = 500 days;
+        directReferalPercentage = 1000;
+        minimumWithdrawlAmount = 10 * 1e18;
         usdcAddress = _usdcToken;
         kgcAddress = _kgcToken;
         pancakeRouter = IPancakeRouter01(_pancakeRouter);
 
         setRewardPercentages();
     }
+    
     function registerUser(uint256 _fee, address referalAddress) external {
         
         require(referalAddress != msg.sender && referalAddress != address(0), "invalid referal Address!");
@@ -128,22 +137,20 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
 
     }
 
-
-
-
-
    
     function stakeTokens(uint256 _amount) external  {
         
         require(_amount >= minimumAmount && _amount <= maximumAmount, "invalid amount!");
         require(userRegistered[msg.sender].registered, "Plaese register!");
 
-        // uint256 kgcTokenAmount = getKGCAmount(_amount);
-        uint256 kgcTokenAmount = (_amount);
+        uint256 kgcTokenAmount = getKGCAmount(_amount);
 
+        require(kgcTokenAmount > 0,"Kgc amounyt canot be zero");
         require(kgcToken.balanceOf(msg.sender) >= kgcTokenAmount,"insufficient Kgc balancce.");
 
         stakeInfo[msg.sender].stakeAmount = kgcTokenAmount;
+        stakeInfo[msg.sender].stakeStartTime = block.timestamp;
+        stakeInfo[msg.sender].stakeEndTime = block.timestamp + 500 days;
         
         address _referalPerson;
         
@@ -151,24 +158,39 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
            
             uint256 referalPersonId = userRegistered[msg.sender].noOfreferals -=1;
             _referalPerson = referalPerson[msg.sender][referalPersonId];
-            stakeInfo[_referalPerson].totalReferalReward += directReferalAmount(kgcTokenAmount);
+            stakeInfo[_referalPerson].referalRewards += calculatePercentage(kgcTokenAmount, directReferalPercentage);
+            stakeInfo[_referalPerson].totalReward += stakeInfo[_referalPerson].referalRewards;
         }
 
         kgcToken.transferFrom(msg.sender, address(this), kgcTokenAmount);
 
-        emit Staked(msg.sender, kgcTokenAmount, _referalPerson, directReferalAmount(kgcTokenAmount));
+        emit Staked(msg.sender, kgcTokenAmount, _referalPerson, calculatePercentage(kgcTokenAmount, directReferalPercentage));
     }
 
-    function directReferalAmount(uint256 _totalStakeAmount) public pure returns(uint256) {
+    function Withdraw(uint256 _amount) external  view {
+
+        require(_amount != 0, "invalid Amount1");
+        uint256 minimumWithdrawl = getKGCAmount( minimumWithdrawlAmount);
+        _amount = getKGCAmount( _amount);
+
+        require(_amount >= minimumWithdrawl,"invalid Amount.");
+        
+        uint256 kgcTokenAmount = getKGCAmount(_amount);
+        require(kgcTokenAmount >= stakeInfo[msg.sender].totalReward,"Insufficent kgc Amount.");
+
+    }
+
+
+    function calculatePercentage(uint256 _totalStakeAmount,uint256 percentageNumber) private pure returns(uint256) {
         
         require(_totalStakeAmount !=0 , "_totalStakeAmount can not be zero");
-        
-        uint256 serviceFee = _totalStakeAmount.mul(1000).div(10000);
+        require(percentageNumber !=0 , "_totalStakeAmount can not be zero");
+        uint256 serviceFee = _totalStakeAmount.mul(percentageNumber).div(10000);
         
         return serviceFee;
     }
     
-
+    
     function getKGCAmount(uint256 _usdcAmount) public view returns(uint256){
         
         address[] memory pathTogetKGC = new address[](2);
@@ -181,21 +203,6 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
         return _kgcAmount[1];
 
     } 
-
-    // how much busd aginst one gen.
-    function getKGCPrice(uint256 _kgcAmount) public  view returns(uint256){
-        
-        address[] memory pathTogetKGCPrice = new address[](2);
-        pathTogetKGCPrice[0] = kgcAddress;
-        pathTogetKGCPrice[1] = usdcAddress;
-
-        uint256[] memory _kgcPrice;
-        _kgcPrice = pancakeRouter.getAmountsOut(_kgcAmount,pathTogetKGCPrice);
-
-        return _kgcPrice[1];
-    }
-
-
 
 
 
@@ -226,6 +233,10 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
     {}
 }
 
+// KGC = 0x7Fd1b9De1eca936A3F840036A14654C62BDE2E3d
+// USDC = 0x7721CD0E41f213D58Cf815EFdb730Aca23e4E87E
+// router = 0xD99D1c33F9fC3444f8101754aBC46c52416550D1
+
 // 0x0000000000000000000000000000000000000000
 
 // 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4
@@ -243,3 +254,17 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
 
 //  mint :0xf8e81D47203A594245E36C48e151709F0C19fBe8
 // mrkt = 0x7EF2e0048f5bAeDe046f6BF797943daF4ED8CB47
+
+
+// how much busd aginst one gen.
+    // function getKGCPrice(uint256 _kgcAmount) public view  returns(uint256){
+        
+    //     address[] memory pathTogetKGCPrice = new address[](2);
+    //     pathTogetKGCPrice[0] = kgcAddress;
+    //     pathTogetKGCPrice[1] = usdcAddress;
+
+    //     uint256[] memory _kgcPrice;
+    //     _kgcPrice = pancakeRouter.getAmountsOut(_kgcAmount,pathTogetKGCPrice);
+        
+    //     return _kgcPrice[1];
+    // }
