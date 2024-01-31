@@ -80,7 +80,7 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
     
     event Withdraw(address _userAddress, uint256 withdrawAmount );
     event Register(address regissteredUser, address referalPerson, uint256 _fee);
-
+    event KGCTransfer(address _from, address _to, uint256 _amount);
     event Stake(address _staker, uint256 _stakeAmount, address _directReferal, uint256 _directreferalBonus);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -157,8 +157,8 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
         require(_amount >= minimumAmount && _amount <= maximumAmount, "invalid amount!");
         require(userRegistered[msg.sender].registered, "Plaese register!");
 
-        // uint256 kgcTokenAmount = getKGCAmount(_amount);
-        uint256 kgcTokenAmount = _amount;
+        uint256 kgcTokenAmount = getKGCAmount(_amount);
+        // uint256 kgcTokenAmount = _amount;
 
         require(kgcTokenAmount > 0,"Kgc amounyt canot be zero");
         require(kgcToken.balanceOf(msg.sender) >= kgcTokenAmount,"insufficient Kgc balancce.");
@@ -181,7 +181,7 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
             uint256 referalPersonId = userRegistered[msg.sender].noOfreferals;
             referalPersonId -= 1;
             _referalPerson = referalPerson[msg.sender][referalPersonId];
-            userRegistered[_referalPerson].referalRewards += calculatePercentage(kgcTokenAmount, directReferalPercentage);
+            userRegistered[_referalPerson].referalRewards = calculatePercentage(kgcTokenAmount, directReferalPercentage);
             userRegistered[_referalPerson].totalReward += userRegistered[_referalPerson].referalRewards;
         }
 
@@ -196,67 +196,44 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
 
         require(_amount != 0, "invalid Amount1");
         
-        // uint256 minimumWithdrawl = getKGCAmount( minimumWithdrawlAmount);
-        // _amount = getKGCAmount( _amount);
+        uint256 minimumWithdrawl = getKGCAmount( minimumWithdrawlAmount);
+        _amount = getKGCAmount( _amount);
 
-        // require(_amount >= minimumWithdrawl,"invalid Amount.");
+        require(_amount >= minimumWithdrawl,"invalid Amount.");
 
         require(userRegistered[msg.sender].noOfStakes > 0, "YOu didnt stake!");
 
         uint256 totalStakeIds = userRegistered[msg.sender].noOfStakes;
-        console.log("totalStakeIds: ", totalStakeIds);
 
         if(userRegistered[msg.sender].totalReward < _amount){
        
             for(uint256 i=0; i<totalStakeIds; i++){
 
                 uint256 stakeId = i;
-
-                console.log(" stakeInfo[stakeId].rewardDays: ", stakeInfo[msg.sender][stakeId].rewardDays );
                 
                 if(stakeInfo[msg.sender][stakeId].rewardDays < 20){
 
-                    console.log(" first if ", stakeId);
-                    
-                    console.log(" stakeInfo[stakeId].stakeEndTime : ", stakeInfo[msg.sender][stakeId].stakeEndTime);
-
                     if(block.timestamp > stakeInfo[msg.sender][stakeId].stakeEndTime){
 
-                        console.log(" second if : ", stakeInfo[msg.sender][stakeId].stakeEndTime);
-                        
                         uint256 totaldays = 20 - stakeInfo[msg.sender][stakeId].rewardDays;
-                        console.log("totaldays: ", totaldays);
-
                         stakeInfo[msg.sender][stakeId].rewardDays += totaldays;
                         
                         uint256 totalPercentage = perdayPercentage.mul(totaldays);
-                        console.log("totalPercentage: ", totalPercentage);
-
                         uint256 totalReward = calculatePercentage(stakeInfo[msg.sender][stakeId].stakeAmount, totalPercentage);
-                        console.log("totalReward: ", totalReward);
-
+                        
                         userRegistered[msg.sender].totalReward += totalReward;
-                        console.log("userRegistered[msg.sender].totalReward: ", userRegistered[msg.sender].totalReward);
                     }
                     else{
 
                         uint256 totaldays = calculateTotalMinutes(stakeInfo[msg.sender][stakeId].stakeStartTime, block.timestamp);
-                        console.log("totaldays: ", totaldays);
-
                         stakeInfo[msg.sender][stakeId].rewardDays += totaldays;
-                        console.log("stakeInfo[msg.sender][stakeId].rewardDays: ", stakeInfo[msg.sender][stakeId].rewardDays);
                         
                         require(totaldays > 0,"please wait for atlseat day!");
-                       
+                        
                         uint256 totalPercentage = perdayPercentage.mul(totaldays);
-                        console.log("totalPercentage: ", totalPercentage);
-
                         uint256 totalReward = calculatePercentage(stakeInfo[msg.sender][stakeId].stakeAmount, totalPercentage);
-                        console.log("totalReward: ", totalReward);
-
+                        
                         userRegistered[msg.sender].totalReward += totalReward;
-                        console.log("userRegistered[msg.sender].totalReward: ", userRegistered[msg.sender].totalReward);
-
                         stakeInfo[msg.sender][stakeId].stakeStartTime = block.timestamp;
                     }
                 }
@@ -265,24 +242,15 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
         
         require( userRegistered[msg.sender].totalReward >= _amount, "not enough reward Amount!");
         
-        console.log("_amount: ", _amount);
-        
         userRegistered[msg.sender].totalReward -= _amount;
-        console.log("userRegistered[msg.sender].totalReward: ", userRegistered[msg.sender].totalReward);
         
         uint256 deductedAmount = calculatePercentage( _amount,withdrawlDeductionPercentage);
         _amount -= deductedAmount;
         
-        console.log("deductedAmount: ", deductedAmount);
-        console.log("_amount: ", _amount);
-        
         require(kgcToken.balanceOf(address(this)) >= _amount, "Admin need to topup the wallet!");
-
-        console.log("after admin check: ", _amount);
         
         kgcToken.transfer(msg.sender, _amount);
-        console.log("after transfer: ", _amount);
-
+        
         emit Withdraw(msg.sender, _amount);
     }
 
@@ -294,6 +262,13 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
         uint256 totalMinutes = (timeDifference / 1 minutes);
 
         return totalMinutes;
+    }
+
+    function SendKGC(address recipient, uint256 amount) external {
+        require(amount != 0, "amount canot be zero.");
+        require(recipient != address(0), "recipient address canot be zero.");
+        kgcToken.transferFrom(msg.sender, recipient, amount); 
+        emit KGCTransfer(msg.sender, recipient,amount);
     }
 
 
