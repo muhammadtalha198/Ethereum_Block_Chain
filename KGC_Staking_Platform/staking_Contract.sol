@@ -43,10 +43,12 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
     uint256 public registrerationFee;
     uint256 public minimumAmount;
     uint256 public maximumAmount;
+    uint256 public perdayPercentage;
+
     uint256 public minimumWithdrawlAmount;
+    uint256 public withdrawlDeductionPercentage;
     uint256 public directReferalPercentage;
     uint256[] public rewardLevelPercentages;
-
     address usdcAddress;
     address kgcAddress;
 
@@ -54,21 +56,24 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
     struct UserRegistered{
         bool haveReferal;
         bool registered;
+        uint256 noOfStakes;
+        uint256 totalReward;
         uint256 noOfreferals;
+        uint256 referalRewards;
+
     }
     
     struct Stake {
+        bool staked;
+        uint256 rewardDays;
         uint256 stakeAmount;
         uint256 stakeEndTime;
-        uint256 stakeStartTime;
-        uint256 nextWithdrawTime;
         uint256 stakedRewards;
-        uint256 referalRewards;
-        uint256 totalReward;
+        uint256 stakeStartTime;
     }
    
    
-    mapping(address => Stake) public stakeInfo;
+    mapping(uint256 => Stake) public stakeInfo;
     mapping(address => UserRegistered) public userRegistered;
     mapping(address => mapping(uint256 => address)) public referalPerson;
     mapping(address => mapping(uint256 => mapping(address => uint256))) public referalPersonLevel;
@@ -91,8 +96,10 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
         registrerationFee = 5 * 1e18;
         minimumAmount = 2 * 1e18;
         maximumAmount = 50 * 1e18;
-        directReferalPercentage = 1000;
+        directReferalPercentage = 1000; // 10%
         minimumWithdrawlAmount = 10 * 1e18;
+        withdrawlDeductionPercentage = 500;  // 5%
+        perdayPercentage = 40 ;  // 0.40%
         usdcAddress = _usdcToken;
         kgcAddress = _kgcToken;
         pancakeRouter = IPancakeRouter01(_pancakeRouter);
@@ -138,7 +145,7 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
     }
 
    
-    function stakeTokens(uint256 _amount) external  {
+    function stakeTokens(uint256 _amount) external returns(uint256) {
         
         require(_amount >= minimumAmount && _amount <= maximumAmount, "invalid amount!");
         require(userRegistered[msg.sender].registered, "Plaese register!");
@@ -147,37 +154,81 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
 
         require(kgcTokenAmount > 0,"Kgc amounyt canot be zero");
         require(kgcToken.balanceOf(msg.sender) >= kgcTokenAmount,"insufficient Kgc balancce.");
-
-        stakeInfo[msg.sender].stakeAmount = kgcTokenAmount;
-        stakeInfo[msg.sender].stakeStartTime = block.timestamp;
-        stakeInfo[msg.sender].stakeEndTime = block.timestamp + 500 days;
         
+        uint256 stakeId = userRegistered[msg.sender].noOfStakes;
+
+        
+        stakeInfo[stakeId].staked = true;
+        stakeInfo[stakeId].stakeAmount = kgcTokenAmount;
+        stakeInfo[stakeId].stakeStartTime = block.timestamp;
+        stakeInfo[stakeId].stakeEndTime = block.timestamp + 500 days;
+        userRegistered[msg.sender].noOfStakes++;
+
         address _referalPerson;
         
         if(userRegistered[msg.sender].haveReferal){
-           
+
             uint256 referalPersonId = userRegistered[msg.sender].noOfreferals -=1;
             _referalPerson = referalPerson[msg.sender][referalPersonId];
-            stakeInfo[_referalPerson].referalRewards += calculatePercentage(kgcTokenAmount, directReferalPercentage);
-            stakeInfo[_referalPerson].totalReward += stakeInfo[_referalPerson].referalRewards;
+            userRegistered[_referalPerson].referalRewards += calculatePercentage(kgcTokenAmount, directReferalPercentage);
+            userRegistered[_referalPerson].totalReward += userRegistered[_referalPerson].referalRewards;
         }
 
         kgcToken.transferFrom(msg.sender, address(this), kgcTokenAmount);
 
         emit Staked(msg.sender, kgcTokenAmount, _referalPerson, calculatePercentage(kgcTokenAmount, directReferalPercentage));
+        
     }
 
-    function Withdraw(uint256 _amount) external  view {
+
+    function Withdraw(uint256 stakeId, uint256 _amount) external  {
 
         require(_amount != 0, "invalid Amount1");
+        
         uint256 minimumWithdrawl = getKGCAmount( minimumWithdrawlAmount);
         _amount = getKGCAmount( _amount);
 
         require(_amount >= minimumWithdrawl,"invalid Amount.");
-        
-        uint256 kgcTokenAmount = getKGCAmount(_amount);
-        require(kgcTokenAmount >= stakeInfo[msg.sender].totalReward,"Insufficent kgc Amount.");
+       
+        if(stakeInfo[stakeId].rewardDays < 500){
+            
+            if(block.timestamp > stakeInfo[stakeId].stakeEndTime){
+                
+                uint256 totaldays = 500 - stakeInfo[stakeId].rewardDays;
+                uint256 totalPercentage = perdayPercentage.mul(totaldays);
+                uint256 totalReward = calculatePercentage(_amount, totalPercentage);
 
+                userRegistered[msg.sender].totalReward += totalReward;
+            }
+            else{
+
+                uint256 totaldays = calculateTotaldays(stakeInfo[stakeId].stakeStartTime, block.timestamp);
+                stakeInfo[stakeId].rewardDays += totaldays;
+                uint256 totalPercentage = perdayPercentage.mul(totaldays);
+                uint256 totalReward = calculatePercentage(_amount, totalPercentage);
+
+                userRegistered[msg.sender].totalReward += totalReward;
+                stakeInfo[stakeId].stakeStartTime = block.timestamp;
+            }
+        }
+
+        
+        userRegistered[msg.sender].totalReward -= _amount;
+        _amount = calculatePercentage( _amount,withdrawlDeductionPercentage);
+        require(kgcToken.balanceOf(address(this)) >= _amount, "Admin need to topup the wallet!");
+
+        kgcToken.transferFrom(address(this), msg.sender, _amount);
+    }
+
+
+    function calculateTotaldays(uint256 _startTime, uint256 _endTime) public pure returns(uint256){
+        
+        require(_endTime > _startTime, "End time must be greater than start time");
+
+        uint256 timeDifference = _endTime - _startTime;
+        uint256 totalDays = timeDifference / 1 days;
+
+        return totalDays;
     }
 
 
