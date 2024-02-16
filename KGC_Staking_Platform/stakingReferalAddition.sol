@@ -65,7 +65,6 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
     struct OwnerInfo{
         uint256[] levelNo;
         address[] ownerIs;
-        uint256[] deducteAmount;
     }
 
     struct StakeInfo {
@@ -76,11 +75,6 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
         uint256 stakedRewards;
         uint256 stakeStartTime;
     }
-
-    // struct ReferalInfo{
-    //     uint256 previousRewardDays;
-    //     uint256 withdrawlTime;
-    // }
    
    
     mapping(address  => OwnerInfo) ownerInfo;
@@ -159,7 +153,7 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
         }
     }
 
-    // Getter function to retrieve level numbers and owners for a given address
+
     function getOwnInfo(address _owner) external view returns (uint256[] memory, address[] memory) {
         return (ownerInfo[_owner].levelNo, ownerInfo[_owner].ownerIs);
     }
@@ -178,9 +172,6 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
         require(kgcToken.balanceOf(msg.sender) >= kgcTokenAmount,"insufficient Kgc balancce.");
         
         uint256 stakeId = userRegistered[msg.sender].noOfStakes;
-        console.log("stakeId: ", stakeId);
-        
-
         
         stakeInfo[msg.sender][stakeId].staked = true;
         stakeInfo[msg.sender][stakeId].stakeAmount = kgcTokenAmount;
@@ -228,24 +219,15 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
                         if(block.timestamp > stakeInfo[msg.sender][stakeId].stakeEndTime){
 
                             uint256 totaldays = 20 - stakeInfo[msg.sender][stakeId].rewardDays;
-                            stakeInfo[msg.sender][stakeId].rewardDays += totaldays;
-                            
-                            uint256 totalPercentage = perdayPercentage.mul(totaldays);
-                            uint256 totalReward = calculatePercentage(stakeInfo[msg.sender][stakeId].stakeAmount, totalPercentage);
-                            
-                            userRegistered[msg.sender].totalReward += totalReward;
+                            StakeRewardCalculation(totaldays, msg.sender, stakeId);
+
                         }
                         else{
 
                             uint256 totaldays = calculateTotalMinutes(stakeInfo[msg.sender][stakeId].stakeStartTime, block.timestamp);
-                            stakeInfo[msg.sender][stakeId].rewardDays += totaldays;
-                            
+                
                             require(totaldays > 0,"please wait for atlseat day!");
-                            
-                            uint256 totalPercentage = perdayPercentage.mul(totaldays);
-                            uint256 totalReward = calculatePercentage(stakeInfo[msg.sender][stakeId].stakeAmount, totalPercentage);
-                            
-                            userRegistered[msg.sender].totalReward += totalReward;
+                            StakeRewardCalculation(totaldays, msg.sender, stakeId);
                             stakeInfo[msg.sender][stakeId].stakeStartTime = block.timestamp;
                         }
                     }
@@ -268,6 +250,17 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
         emit Withdraw(msg.sender, _amount);
     }
 
+    function StakeRewardCalculation(uint256 totaldays, address userAddress, uint256 stakeId) private {
+
+            stakeInfo[userAddress][stakeId].rewardDays += totaldays;
+                            
+            uint256 totalPercentage = perdayPercentage.mul(totaldays);
+            uint256 totalReward = calculatePercentage(stakeInfo[userAddress][stakeId].stakeAmount, totalPercentage);
+            
+            userRegistered[userAddress].totalReward += totalReward;
+       
+    }
+
     
     
     
@@ -284,8 +277,6 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
         for (uint i=0; i < ownerInfo[msg.sender].ownerIs.length; i++){
 
             uint256 ownerTotalStakeCount = userRegistered[ownerInfo[msg.sender].ownerIs[i]].noOfStakes;
-
-            
 
             for(uint j=0; j< ownerTotalStakeCount; j++){
 
@@ -315,7 +306,6 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
 
             }
 
-            uint256 previousWithdrawlAmount = ownerInfo[msg.sender].deducteAmount[i];
         }
     }
 
@@ -334,7 +324,7 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
         uint256 previousDays = referalInfo[referalPerson][owner][stakeCount];
         uint256 rewardDays = totaldays.sub(previousDays);
         
-        // require(rewardDays > 0,"please wait for atlseat day!");
+        require(rewardDays > 0,"please wait for atlseat day to generate the reward");
         referalInfo[referalPerson][owner][stakeCount] = totaldays;
         
         uint256 totalPercentage = perdayPercentage.mul(rewardDays);
@@ -402,17 +392,6 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
     } 
 
 
-    // function setRewardPercentages() private {
-        
-    //     rewardLevelPercentages.push(50);  // 50%
-    //     rewardLevelPercentages.push(10);  // 10%
-    //     rewardLevelPercentages.push(5);   // 5%
-    //     rewardLevelPercentages.push(3);   // 3%
-    //     rewardLevelPercentages.push(2);   // 2%
-    //     rewardLevelPercentages.push(1);   // 1%
-    // }
-
-
     function pause() public onlyOwner {
         _pause();
     }
@@ -441,25 +420,3 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
 // 0x617F2E2fD72FD9D5503197092aC168c91465E7f2
 // 0x17F6AD8Ef982297579C203069C1DbfFE4348c372
 // 0x5c6B0f7Bf3E7ce046039Bd8FABdfD3f9F5021678
-
-// org1 = 0xdD870fA1b7C4700F2BD7f44238821C26f7392148
-// org2 = 0x583031D1113aD414F02576BD6afaBfb302140225
-// org3 = 0x4B0897b0513fdC7C541B6d9D7E929C4e5364D2dB
-// fiscl = 0x14723A09ACff6D2A60DcdF7aA4AFf308FDDC160C
-
-//  mint :0xf8e81D47203A594245E36C48e151709F0C19fBe8
-// mrkt = 0x7EF2e0048f5bAeDe046f6BF797943daF4ED8CB47
-
-
-// how much busd aginst one gen.
-    // function getKGCPrice(uint256 _kgcAmount) public view  returns(uint256){
-        
-    //     address[] memory pathTogetKGCPrice = new address[](2);
-    //     pathTogetKGCPrice[0] = kgcAddress;
-    //     pathTogetKGCPrice[1] = usdcAddress;
-
-    //     uint256[] memory _kgcPrice;
-    //     _kgcPrice = pancakeRouter.getAmountsOut(_kgcAmount,pathTogetKGCPrice);
-        
-    //     return _kgcPrice[1];
-    // }
