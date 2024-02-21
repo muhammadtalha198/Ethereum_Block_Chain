@@ -120,9 +120,14 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
         userRegistered[msg.sender].hasReferal = true;
         userRegistered[msg.sender].registered = true;
         userRegistered[msg.sender].ownerOf = referalAddress;
-        userRegistered[referalAddress].noOfDirectReferals += 1;
-        userRegistered[referalAddress].registrationtime = block.timestamp;
-
+        userRegistered[msg.sender].registrationtime = block.timestamp;
+        
+        if(userRegistered[msg.sender].registered){
+            
+            if(block.timestamp < userRegistered[referalAddress].registrationtime + 30 minutes){
+                userRegistered[referalAddress].noOfDirectReferals += 1;
+            }
+        }
 
         if (userRegistered[msg.sender].hasReferal) {
             
@@ -386,6 +391,7 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
     }
 
     uint256 rewardDayss;
+    uint256 minimumAmount1;
 
     
     function referalRewardCalculation(
@@ -428,8 +434,14 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
 
             uint256 referalPercantage;
 
-            if(Ownerlevel == 2){
-                if()
+            // uint256 minimumAmount = getKGCPrice( userRegistered[referalPerson].totalStakedAmount);
+             minimumAmount1 = userRegistered[referalPerson].totalStakedAmount;
+
+
+            if(Ownerlevel == 2 && userRegistered[referalPerson].noOfDirectReferals >= 5 && 
+                minimumAmount1 >= 300 *1e18)
+            {
+                    referalPercantage = 50 * 100;
 
             }else{
 
@@ -500,6 +512,18 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
         return _kgcAmount[1];
 
     } 
+    
+    function getKGCPrice(uint256 _kgcAmount) public view  returns(uint256){
+        
+        address[] memory pathTogetKGCPrice = new address[](2);
+        pathTogetKGCPrice[0] = kgcAddress;
+        pathTogetKGCPrice[1] = usdcAddress;
+
+        uint256[] memory _kgcPrice;
+        _kgcPrice = pancakeRouter.getAmountsOut(_kgcAmount,pathTogetKGCPrice);
+        
+        return _kgcPrice[1];
+    }
 
 
     function pause() public onlyOwner {
