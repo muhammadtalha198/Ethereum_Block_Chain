@@ -20,16 +20,6 @@ interface IPancakeRouter01 {
     function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts);
 }
 
- /*
-     level 1 =        50 %
-     level 2 =        10  %    
-     level 3 to 5 =    5 %
-     level 6 to 10 =   3 %
-     level 11 to 30 =  2 %
-     level 31 to 50  = 1 %
-    
-    */
-
 contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
     
     
@@ -53,8 +43,6 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
     address kgcAddress;
 
 
-
-
     struct UserRegistered{
         bool hasReferal;
         bool registered;
@@ -62,7 +50,8 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
         uint256 noOfStakes;
         uint256 totalReward;
         uint256 referalRewards;
-
+        uint256 withdrawedAmount;
+        uint256 totalStakedAmount;
     }
     
     struct OwnerInfo{
@@ -72,21 +61,24 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
 
     struct StakeInfo {
         bool staked;
-        uint256 rewardDays;
+        uint256 previousDays;
         uint256 stakeAmount;
         uint256 stakeEndTime;
         uint256 stakedRewards;
         uint256 stakeStartTime;
+        uint256 lastWithdrawTime;
     }
    
    
-    mapping(address  => OwnerInfo)  ownerInfo;
-    mapping(address => mapping (uint256 => StakeInfo)) public stakeInfo;
+    mapping(address  => OwnerInfo) ownerInfo;
     mapping(address => UserRegistered) public userRegistered;
+    mapping(address => mapping (uint256 => StakeInfo)) public stakeInfo;
+    mapping(address => mapping (address => mapping(uint256 => uint256))) public referalPersonDays;
+    mapping(address => mapping (address => mapping(uint256 => uint256))) public referalPersonReward;
+
     
     event Withdraw(address _userAddress, uint256 withdrawAmount );
     event Register(address regissteredUser, address referalPerson, uint256 _fee);
-
     event Stake(address _staker, uint256 _stakeAmount, address _directReferal, uint256 _directreferalBonus);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -105,14 +97,14 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
         minimumAmount = 2 * 1e18;
         maximumAmount = 50 * 1e18;
         directReferalPercentage = 1000; // 10%
-        minimumWithdrawlAmount = 10 * 1e18;
+        minimumWithdrawlAmount = /*10 * 1e18*/ 300000000000000;
         withdrawlDeductionPercentage = 500;  // 5%
         perdayPercentage = 40 ;  // 0.40%
         usdcAddress = _usdcToken;
         kgcAddress = _kgcToken;
         pancakeRouter = IPancakeRouter01(_pancakeRouter);
 
-        setRewardPercentages();
+        // setRewardPercentages();
     }
     
     function registerUser(uint256 _fee, address referalAddress) external {
@@ -155,6 +147,11 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
         }
     }
 
+
+    function getOwnInfo(address _owner) external view returns (uint256[] memory, address[] memory) {
+        return (ownerInfo[_owner].levelNo, ownerInfo[_owner].ownerIs);
+    }
+
    
     function stakeTokens(uint256 _amount) external  {
 
@@ -165,18 +162,18 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
         // uint256 kgcTokenAmount = getKGCAmount(_amount);
         uint256 kgcTokenAmount = _amount;
 
+        console.log("kgcTokenAmount :", kgcTokenAmount);
+
         require(kgcTokenAmount > 0,"Kgc amounyt canot be zero");
         require(kgcToken.balanceOf(msg.sender) >= kgcTokenAmount,"insufficient Kgc balancce.");
         
         uint256 stakeId = userRegistered[msg.sender].noOfStakes;
-        console.log("stakeId: ", stakeId);
-        
-
         
         stakeInfo[msg.sender][stakeId].staked = true;
         stakeInfo[msg.sender][stakeId].stakeAmount = kgcTokenAmount;
         stakeInfo[msg.sender][stakeId].stakeStartTime = block.timestamp;
-        stakeInfo[msg.sender][stakeId].stakeEndTime = block.timestamp + 20 minutes;
+        stakeInfo[msg.sender][stakeId].stakeEndTime = block.timestamp + 400 minutes;
+        userRegistered[msg.sender].totalStakedAmount += kgcTokenAmount;
         userRegistered[msg.sender].noOfStakes++;
 
         address _referalPerson;
@@ -197,64 +194,256 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
    function WithdrawAmount(uint256 _amount) external  {
 
         require(_amount != 0, "invalid Amount1");
+
+        // console.log("kgcTokenAmount :", kgcTokenAmount);
         
-        uint256 minimumWithdrawl = getKGCAmount( minimumWithdrawlAmount);
-        _amount = getKGCAmount( _amount);
+        // uint256 minimumWithdrawl = getKGCAmount( minimumWithdrawlAmount);
+        // _amount = getKGCAmount( _amount);
 
-        require(_amount >= minimumWithdrawl,"invalid Amount.");
+        // require(_amount >= minimumWithdrawl,"invalid Amount.");
 
-        require(userRegistered[msg.sender].noOfStakes > 0, "YOu didnt stake!");
+        if(userRegistered[msg.sender].noOfStakes > 0){
 
-        uint256 totalStakeIds = userRegistered[msg.sender].noOfStakes;
+            console.log("userRegistered[msg.sender].noOfStakes : ", userRegistered[msg.sender].noOfStakes);
 
-        if(userRegistered[msg.sender].totalReward < _amount){
-       
-            for(uint256 i=0; i<totalStakeIds; i++){
 
-                uint256 stakeId = i;
-                
-                if(stakeInfo[msg.sender][stakeId].rewardDays < 20){
+            uint256 totalStakeIds = userRegistered[msg.sender].noOfStakes;
 
-                    if(block.timestamp > stakeInfo[msg.sender][stakeId].stakeEndTime){
+            console.log("totalStakeIds : ", totalStakeIds);
 
-                        uint256 totaldays = 20 - stakeInfo[msg.sender][stakeId].rewardDays;
-                        stakeInfo[msg.sender][stakeId].rewardDays += totaldays;
-                        
-                        uint256 totalPercentage = perdayPercentage.mul(totaldays);
-                        uint256 totalReward = calculatePercentage(stakeInfo[msg.sender][stakeId].stakeAmount, totalPercentage);
-                        
-                        userRegistered[msg.sender].totalReward += totalReward;
-                    }
-                    else{
+            if(userRegistered[msg.sender].totalReward < _amount){
 
-                        uint256 totaldays = calculateTotalMinutes(stakeInfo[msg.sender][stakeId].stakeStartTime, block.timestamp);
-                        stakeInfo[msg.sender][stakeId].rewardDays += totaldays;
-                        
-                        require(totaldays > 0,"please wait for atlseat day!");
-                        
-                        uint256 totalPercentage = perdayPercentage.mul(totaldays);
-                        uint256 totalReward = calculatePercentage(stakeInfo[msg.sender][stakeId].stakeAmount, totalPercentage);
-                        
-                        userRegistered[msg.sender].totalReward += totalReward;
-                        stakeInfo[msg.sender][stakeId].stakeStartTime = block.timestamp;
+
+                    console.log("userRegistered[msg.sender].totalReward : ", userRegistered[msg.sender].totalReward);
+
+
+                for(uint256 i=0; i<totalStakeIds; i++){
+                    
+                    if(stakeInfo[msg.sender][i].previousDays < 400){
+
+                        if(block.timestamp > stakeInfo[msg.sender][i].stakeEndTime){
+
+                            uint256 previousDays = stakeInfo[msg.sender][i].previousDays;
+
+                            uint256 rewardDays = 400 - previousDays;
+
+                            require(rewardDays > 0,"please wait for atlseat day!");
+                            
+                            stakeInfo[msg.sender][i].previousDays = 400;
+            
+                            StakeRewardCalculation(rewardDays, msg.sender, i);
+
+                        }
+                        else{
+
+                            uint256 totaldays = calculateTotalMinutes(stakeInfo[msg.sender][i].stakeStartTime, block.timestamp);
+
+                            console.log("totaldays : ", totaldays);
+
+                            require(totaldays > 0,"please wait for atlseat day!");
+
+                            uint256 previousDays = stakeInfo[msg.sender][i].previousDays;
+                            uint256 rewardDays= totaldays - previousDays;
+            
+                            stakeInfo[msg.sender][i].previousDays = totaldays;
+            
+                            require(rewardDays > 0,"please wait for atlseat day!");
+                            
+                            StakeRewardCalculation(rewardDays, msg.sender, i);
+                            stakeInfo[msg.sender][i].stakeStartTime = block.timestamp;
+                        }
                     }
                 }
             }
         }
+
+
+        
+        console.log("check : ");
+        console.log("userRegistered[msg.sender].totalReward : ", userRegistered[msg.sender].totalReward);
         
         require( userRegistered[msg.sender].totalReward >= _amount, "not enough reward Amount!");
         
         userRegistered[msg.sender].totalReward -= _amount;
+
+        console.log("userRegistered[msg.sender].totalReward : ",userRegistered[msg.sender].totalReward);
+        
+        
+        userRegistered[msg.sender].withdrawedAmount =_amount;
         
         uint256 deductedAmount = calculatePercentage( _amount,withdrawlDeductionPercentage);
         _amount -= deductedAmount;
+
+        console.log("deductedAmount : ",deductedAmount);
         
         require(kgcToken.balanceOf(address(this)) >= _amount, "Admin need to topup the wallet!");
+        
         
         kgcToken.transfer(msg.sender, _amount);
         
         emit Withdraw(msg.sender, _amount);
     }
+
+
+
+    function StakeRewardCalculation(uint256 totaldays, address userAddress, uint256 stakeId) public  returns (uint256){
+
+
+            console.log("stakeInfo[userAddress][stakeId].rewardDays : ", stakeInfo[userAddress][stakeId].previousDays);
+                            
+            uint256 totalPercentage = perdayPercentage.mul(totaldays);
+            console.log("totalPercentage : ", totalPercentage);
+            
+            uint256 totalReward = calculatePercentage(stakeInfo[userAddress][stakeId].stakeAmount, totalPercentage);
+            console.log("totalReward : ", totalReward);
+            
+            console.log("userRegistered[userAddress].totalReward : ", userRegistered[userAddress].totalReward);
+            
+            userRegistered[userAddress].totalReward += totalReward;
+
+            console.log("userRegistered[userAddress].totalReward : ", userRegistered[userAddress].totalReward);
+
+
+            stakeInfo[userAddress][stakeId].stakedRewards += totalReward;
+            stakeInfo[userAddress][stakeId].lastWithdrawTime = block.timestamp;
+
+            return totalReward;
+       
+    }
+
+    
+    function WithdrawReferal(uint256 _amount) external  {
+
+        require(_amount != 0, "invalid Amount1");
+        
+        // uint256 minimumWithdrawl = getKGCAmount( minimumWithdrawlAmount);
+        // _amount = getKGCAmount( _amount);
+
+        // require(_amount >= minimumWithdrawl,"invalid Amount.");
+        
+        console.log("ownerInfo[msg.sender].ownerIs.length : ", ownerInfo[msg.sender].ownerIs.length);
+
+        for (uint i=0; i < ownerInfo[msg.sender].ownerIs.length; i++){
+
+
+            uint256 ownerTotalStakeCount = userRegistered[ownerInfo[msg.sender].ownerIs[i]].noOfStakes;
+
+            console.log("ownerTotalStakeCount : ", ownerTotalStakeCount);
+
+            for(uint j=0; j< ownerTotalStakeCount; j++){
+
+                uint256 ownerStakeAmount = stakeInfo[ownerInfo[msg.sender].ownerIs[i]][j].stakeAmount;
+
+                console.log("ownerStakeAmount : ", ownerStakeAmount);
+
+
+
+                if(block.timestamp > stakeInfo[ownerInfo[msg.sender].ownerIs[i]][j].stakeEndTime){
+
+                    console.log("stakeInfo[ownerInfo[msg.sender].ownerIs[i]][j].stakeEndTime : ", stakeInfo[ownerInfo[msg.sender].ownerIs[i]][j].stakeEndTime);
+
+                    console.log("stakeInfo[ownerInfo[msg.sender].ownerIs[i]][j].stakeStartTime : ", 
+                        stakeInfo[ownerInfo[msg.sender].ownerIs[i]][j].stakeStartTime);
+
+                        console.log("j : ", j);
+
+                        console.log("i : ", i);
+
+                    referalRewardCalculation(
+                        stakeInfo[ownerInfo[msg.sender].ownerIs[i]][j].stakeStartTime,
+                        stakeInfo[ownerInfo[msg.sender].ownerIs[i]][j].stakeEndTime,
+                        msg.sender,
+                        ownerInfo[msg.sender].ownerIs[i],
+                        ownerStakeAmount,j,i);
+
+                }else{
+                        console.log("stakeInfo[ownerInfo[msg.sender].ownerIs[i]][j].stakeStartTime : ", 
+                        stakeInfo[ownerInfo[msg.sender].ownerIs[i]][j].stakeStartTime);
+
+                        console.log("j : ", j);
+
+                        console.log("i : ", i);
+
+                    referalRewardCalculation(
+                        stakeInfo[ownerInfo[msg.sender].ownerIs[i]][j].stakeStartTime,
+                        block.timestamp,
+                        msg.sender,
+                        ownerInfo[msg.sender].ownerIs[i],
+                        ownerStakeAmount,j,i);
+                }
+
+            }
+
+        }
+    }
+
+    uint256 rewardDayss;
+
+    
+    function referalRewardCalculation(
+        uint256 startTime,
+        uint256 endTime,
+        address referalPerson, 
+        address owner,
+        uint256 ownerStakeAmount,
+        uint256 stakeCount,
+        uint256 ownerCount) 
+    
+    private {
+       
+        uint256 totaldays = calculateTotalMinutes(startTime,endTime);
+        console.log("totaldays : ", totaldays);
+        
+        uint256 previousDays = referalPersonDays[referalPerson][owner][stakeCount];
+        console.log("previousDays : ", previousDays);
+
+
+         rewardDayss = totaldays.sub(previousDays);
+        console.log("rewardDays : ", rewardDayss);
+        
+        require(rewardDayss > 0,"please wait for atlseat day to generate the reward");
+        referalPersonDays[referalPerson][owner][stakeCount] = totaldays;
+        
+        uint256 totalPercentage = perdayPercentage.mul(rewardDayss);
+        console.log("totalPercentage : ", totalPercentage);
+
+
+        uint256 totalReward = calculatePercentage(ownerStakeAmount, totalPercentage);
+        console.log("totalReward : ", totalReward);
+
+        uint256 Ownerlevel = ownerInfo[referalPerson].levelNo[ownerCount];
+        console.log("Ownerlevel : ", Ownerlevel);
+
+        uint256 referalPercantage = getPercentage(Ownerlevel);
+        console.log("referalPercantage : ", referalPercantage);
+
+        uint256 referalReward = calculatePercentage(totalReward, referalPercantage);
+        console.log("referalReward : ", referalReward);
+        
+        userRegistered[referalPerson].totalReward += referalReward;
+        console.log("userRegistered[referalPerson].totalReward : ", userRegistered[referalPerson].totalReward);
+        
+        referalPersonReward[referalPerson][owner][stakeCount] = referalReward;
+    }
+
+
+    function getPercentage(uint level) private pure returns (uint256) {
+    if (level == 1) {
+        return 50 * 100;
+    } else if (level == 2) {
+        return 10 * 100;
+    } else if (level >= 3 && level <= 5) {
+        return 5 * 100;
+    } else if (level >= 6 && level <= 10) {
+        return 3 * 100;
+    } else if (level >= 11 && level <= 30) {
+        return 2 * 100;
+    } else if (level >= 31 && level <= 50) {
+        return 1 * 100;
+    } else {
+        return 50;
+    }
+}
 
 
      function calculateTotalMinutes(uint256 _startTime, uint256 _endTime) public pure returns(uint256) {
@@ -291,17 +480,6 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
     } 
 
 
-    function setRewardPercentages() private {
-        
-        rewardLevelPercentages.push(50);  // 50%
-        rewardLevelPercentages.push(10);  // 10%
-        rewardLevelPercentages.push(5);   // 5%
-        rewardLevelPercentages.push(3);   // 3%
-        rewardLevelPercentages.push(2);   // 2%
-        rewardLevelPercentages.push(1);   // 1%
-    }
-
-
     function pause() public onlyOwner {
         _pause();
     }
@@ -330,25 +508,4 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
 // 0x617F2E2fD72FD9D5503197092aC168c91465E7f2
 // 0x17F6AD8Ef982297579C203069C1DbfFE4348c372
 // 0x5c6B0f7Bf3E7ce046039Bd8FABdfD3f9F5021678
-
-// org1 = 0xdD870fA1b7C4700F2BD7f44238821C26f7392148
-// org2 = 0x583031D1113aD414F02576BD6afaBfb302140225
-// org3 = 0x4B0897b0513fdC7C541B6d9D7E929C4e5364D2dB
-// fiscl = 0x14723A09ACff6D2A60DcdF7aA4AFf308FDDC160C
-
-//  mint :0xf8e81D47203A594245E36C48e151709F0C19fBe8
-// mrkt = 0x7EF2e0048f5bAeDe046f6BF797943daF4ED8CB47
-
-
-// how much busd aginst one gen.
-    // function getKGCPrice(uint256 _kgcAmount) public view  returns(uint256){
-        
-    //     address[] memory pathTogetKGCPrice = new address[](2);
-    //     pathTogetKGCPrice[0] = kgcAddress;
-    //     pathTogetKGCPrice[1] = usdcAddress;
-
-    //     uint256[] memory _kgcPrice;
-    //     _kgcPrice = pancakeRouter.getAmountsOut(_kgcAmount,pathTogetKGCPrice);
-        
-    //     return _kgcPrice[1];
-    // }
+//0xf8e81D47203A594245E36C48e151709F0C19fBe8
