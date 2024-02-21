@@ -52,6 +52,9 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
         uint256 referalRewards;
         uint256 withdrawedAmount;
         uint256 totalStakedAmount;
+
+        uint256 noOfDirectReferals;
+        uint256 registrationtime;
     }
     
     struct OwnerInfo{
@@ -68,9 +71,10 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
         uint256 stakeStartTime;
         uint256 lastWithdrawTime;
     }
+
+
    
-   
-    mapping(address  => OwnerInfo) ownerInfo;
+    mapping(address => OwnerInfo) ownerInfo;
     mapping(address => UserRegistered) public userRegistered;
     mapping(address => mapping (uint256 => StakeInfo)) public stakeInfo;
     mapping(address => mapping (address => mapping(uint256 => uint256))) public referalPersonDays;
@@ -116,6 +120,8 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
         userRegistered[msg.sender].hasReferal = true;
         userRegistered[msg.sender].registered = true;
         userRegistered[msg.sender].ownerOf = referalAddress;
+        userRegistered[referalAddress].noOfDirectReferals += 1;
+        userRegistered[referalAddress].registrationtime = block.timestamp;
 
 
         if (userRegistered[msg.sender].hasReferal) {
@@ -172,7 +178,7 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
         stakeInfo[msg.sender][stakeId].staked = true;
         stakeInfo[msg.sender][stakeId].stakeAmount = kgcTokenAmount;
         stakeInfo[msg.sender][stakeId].stakeStartTime = block.timestamp;
-        stakeInfo[msg.sender][stakeId].stakeEndTime = block.timestamp + 400 minutes;
+        stakeInfo[msg.sender][stakeId].stakeEndTime = block.timestamp + 60 minutes;
         userRegistered[msg.sender].totalStakedAmount += kgcTokenAmount;
         userRegistered[msg.sender].noOfStakes++;
 
@@ -219,17 +225,15 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
 
                 for(uint256 i=0; i<totalStakeIds; i++){
                     
-                    if(stakeInfo[msg.sender][i].previousDays < 400){
+                    if(stakeInfo[msg.sender][i].previousDays < 60){
 
                         if(block.timestamp > stakeInfo[msg.sender][i].stakeEndTime){
 
                             uint256 previousDays = stakeInfo[msg.sender][i].previousDays;
 
-                            uint256 rewardDays = 400 - previousDays;
-
-                            require(rewardDays > 0,"please wait for atlseat day!");
+                            uint256 rewardDays = 60 - previousDays;
                             
-                            stakeInfo[msg.sender][i].previousDays = 400;
+                            stakeInfo[msg.sender][i].previousDays = 60;
             
                             StakeRewardCalculation(rewardDays, msg.sender, i);
 
@@ -243,14 +247,18 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
                             require(totaldays > 0,"please wait for atlseat day!");
 
                             uint256 previousDays = stakeInfo[msg.sender][i].previousDays;
+                             console.log("previousDays : ", previousDays);
+
                             uint256 rewardDays= totaldays - previousDays;
+
+                            console.log("rewardDays : ", rewardDays);
             
                             stakeInfo[msg.sender][i].previousDays = totaldays;
             
                             require(rewardDays > 0,"please wait for atlseat day!");
                             
                             StakeRewardCalculation(rewardDays, msg.sender, i);
-                            stakeInfo[msg.sender][i].stakeStartTime = block.timestamp;
+                            // stakeInfo[msg.sender][i].stakeStartTime = block.timestamp;
                         }
                     }
                 }
@@ -400,30 +408,44 @@ contract MyContract is Initializable, PausableUpgradeable, OwnableUpgradeable, U
 
          rewardDayss = totaldays.sub(previousDays);
         console.log("rewardDays : ", rewardDayss);
+
+        require(rewardDayss > 0,"please wait for atlseat day!");
         
-        require(rewardDayss > 0,"please wait for atlseat day to generate the reward");
-        referalPersonDays[referalPerson][owner][stakeCount] = totaldays;
-        
-        uint256 totalPercentage = perdayPercentage.mul(rewardDayss);
-        console.log("totalPercentage : ", totalPercentage);
+        if(rewardDayss != 60){
+            
+            require(rewardDayss > 0,"please wait for atlseat day to generate the reward");
+            referalPersonDays[referalPerson][owner][stakeCount] = totaldays;
+            
+            uint256 totalPercentage = perdayPercentage.mul(rewardDayss);
+            console.log("totalPercentage : ", totalPercentage);
 
 
-        uint256 totalReward = calculatePercentage(ownerStakeAmount, totalPercentage);
-        console.log("totalReward : ", totalReward);
+            uint256 totalReward = calculatePercentage(ownerStakeAmount, totalPercentage);
+            console.log("totalReward : ", totalReward);
 
-        uint256 Ownerlevel = ownerInfo[referalPerson].levelNo[ownerCount];
-        console.log("Ownerlevel : ", Ownerlevel);
+            uint256 Ownerlevel = ownerInfo[referalPerson].levelNo[ownerCount];
+            console.log("Ownerlevel : ", Ownerlevel);
 
-        uint256 referalPercantage = getPercentage(Ownerlevel);
-        console.log("referalPercantage : ", referalPercantage);
+            uint256 referalPercantage;
 
-        uint256 referalReward = calculatePercentage(totalReward, referalPercantage);
-        console.log("referalReward : ", referalReward);
-        
-        userRegistered[referalPerson].totalReward += referalReward;
-        console.log("userRegistered[referalPerson].totalReward : ", userRegistered[referalPerson].totalReward);
-        
-        referalPersonReward[referalPerson][owner][stakeCount] = referalReward;
+            if(Ownerlevel == 2){
+                if()
+
+            }else{
+
+                referalPercantage = getPercentage(Ownerlevel);
+                console.log("referalPercantage : ", referalPercantage);
+            }
+
+
+            uint256 referalReward = calculatePercentage(totalReward, referalPercantage);
+            console.log("referalReward : ", referalReward);
+            
+            userRegistered[referalPerson].totalReward += referalReward;
+            console.log("userRegistered[referalPerson].totalReward : ", userRegistered[referalPerson].totalReward);
+            
+            referalPersonReward[referalPerson][owner][stakeCount] = referalReward;
+        }
     }
 
 
