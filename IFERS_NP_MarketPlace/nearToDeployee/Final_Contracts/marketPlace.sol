@@ -91,11 +91,13 @@ contract Marketplace is
         uint256 bidNo;
     }
 
+
     mapping (uint256 => List) public listing;
     mapping (uint256 => DonationInfo) public donationInfo;
     mapping (uint256 => mapping(address => BidInfo)) public bidInfo;
     mapping (uint256 => mapping(uint256 => address)) public bidder;
 
+    mapping(address => uint256) public defaultFiscalFee;
 
     event CancelBid(bool bided, uint256 _heigestBidAmount);
     event Bided(uint256 _bidNo, address _currentBidder, uint256 _bidAmount, uint256 __heigestBidAmount); 
@@ -105,6 +107,7 @@ contract Marketplace is
     event SoldNft(address _from,uint256 indexed _tokenId,address indexed _nftAddress,address _to,uint256 _noOfCopirs);
     event FeeInfo(uint256 fiscalFee, uint256 royaltyFee,uint256 indexed serviceFee,uint256 indexed donationFee, uint256 indexed amountSendToSeller);
     event Listed(uint256 _listId,uint256 _tokenId, uint256 _noOfCopies, uint256 _initialPrices);
+    event SetFiscalFee(address fiscalAddress, uint256 feePercentage);
     
     //--List item for list--------------------------------------------------------------------/
 
@@ -194,7 +197,7 @@ contract Marketplace is
             _listStartTime,
             _listEndTime,
             listing[_listId].nftAddress,
-            listing[_listId].serviceFee
+            0
         );
         
         emit Edited (
@@ -342,7 +345,7 @@ contract Marketplace is
         bidder[_listId][_bidNo] = address(0);
 
         emit CancelBid(bidInfo[_listId][msg.sender].bided, listing[_listId].heighestBid);
-    }
+}
 
 
 
@@ -509,13 +512,19 @@ contract Marketplace is
         )  = mintingContract.getFiscalSponsor(msg.sender);
 
         if(_haveSponsor){
-            
-            fiscalFee = calulateFee(listing[_listId].price, _fiscalSponsorPercentage);
-            if(_inEth){
-                transferFundsInEth(payable(_fiscalSponser),fiscalFee);
 
-            }else {
-                transferFundsInWEth(bidder[_listId][_bidNo], _fiscalSponser, fiscalFee);
+            if(_fiscalSponsorPercentage == 0){
+                _fiscalSponsorPercentage = defaultFiscalFee[_fiscalSponser];
+            }
+            else{
+            
+                fiscalFee = calulateFee(listing[_listId].price, _fiscalSponsorPercentage);
+                if(_inEth){
+                    transferFundsInEth(payable(_fiscalSponser),fiscalFee);
+
+                }else {
+                    transferFundsInWEth(bidder[_listId][_bidNo], _fiscalSponser, fiscalFee);
+                }
             }
         }
 
@@ -615,14 +624,24 @@ contract Marketplace is
     function transferFundsInEth(address payable _recipient, uint256 _amount) private {
 
         (bool success, ) = _recipient.call{value: _amount}("");
-        require(success, "Transfer fee failed.");
+        require(success, "Transfer failed");
 
     }
 
 
     function transferFundsInWEth(address _src,address _recipient, uint256 _amount) private {
         (bool success) = wMatic.transferFrom(_src, _recipient, _amount);
-        require(success, "Transfer fee failed.");
+        require(success, "Transfer  fee failed");
+    }
+
+    function setFiscalSponsorPercentage(uint256 _fiscalSponsorPercentage) external {
+        
+        require(_fiscalSponsorPercentage >= 100  && _fiscalSponsorPercentage <= 1000, 
+            "_fiscalSponsorPercentage must be between 1 to 10");
+
+        defaultFiscalFee[msg.sender] = _fiscalSponsorPercentage;
+
+        emit SetFiscalFee(msg.sender, _fiscalSponsorPercentage);
     }
 
     function pause() public onlyOwner {
@@ -649,8 +668,8 @@ contract Marketplace is
         for(uint i=0; i < _organizations.length; i++){
             if(_organizations[i] != address(0)){
 
-                require(_donatePercentages[i] >= 500 && _donatePercentages[i] <= 10000,
-                    "donation percentage must be between 5 to 100");
+                require(_donatePercentages[i] >= 500,
+                    "donation percentage must be greater then 5%");
                 atleastOne = true;
             }
         }
@@ -703,24 +722,18 @@ contract Marketplace is
         }
         _;
     }
+
+
 }
 
 // 0x0000000000000000000000000000000000000000
-
-// 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4
-// 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2
-// 0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db
-
 
 // org1 = 0xdD870fA1b7C4700F2BD7f44238821C26f7392148
 // org2 = 0x583031D1113aD414F02576BD6afaBfb302140225
 // org3 = 0x4B0897b0513fdC7C541B6d9D7E929C4e5364D2dB
 // fiscl = 0x14723A09ACff6D2A60DcdF7aA4AFf308FDDC160C
+// 0xdDb68Efa4Fdc889cca414C0a7AcAd3C5Cc08A8C5
 
-//  mint :0xf8e81D47203A594245E36C48e151709F0C19fBe8
-// mrkt = 0x7EF2e0048f5bAeDe046f6BF797943daF4ED8CB47
-
-
-
+//  mint :0xd8b934580fcE35a11B58C6D73aDeE468a2833fa8
 
 
