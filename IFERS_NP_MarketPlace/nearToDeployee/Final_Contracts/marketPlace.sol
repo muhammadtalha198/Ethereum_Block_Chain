@@ -515,6 +515,9 @@ contract Marketplace is
 
             if(_fiscalSponsorPercentage == 0){
                 _fiscalSponsorPercentage = defaultFiscalFee[_fiscalSponser];
+                if(_fiscalSponsorPercentage == 0){
+                    _fiscalSponsorPercentage = 1000; // 10%
+                }
             }
             else{
             
@@ -735,5 +738,4 @@ contract Marketplace is
 // 0xdDb68Efa4Fdc889cca414C0a7AcAd3C5Cc08A8C5
 
 //  mint :0xd8b934580fcE35a11B58C6D73aDeE468a2833fa8
-
 
