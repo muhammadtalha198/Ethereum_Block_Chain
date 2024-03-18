@@ -97,7 +97,7 @@ contract Marketplace is
     mapping (uint256 => mapping(address => BidInfo)) public bidInfo;
     mapping (uint256 => mapping(uint256 => address)) public bidder;
 
-
+    mapping(address => uint256) public defaultFiscalFee;
 
     event CancelBid(bool bided, uint256 _heigestBidAmount);
     event Bided(uint256 _bidNo, address _currentBidder, uint256 _bidAmount, uint256 __heigestBidAmount); 
@@ -514,7 +514,10 @@ contract Marketplace is
         if(_haveSponsor){
 
             if(_fiscalSponsorPercentage == 0){
-                _fiscalSponsorPercentage = 1000; // 10 %
+                _fiscalSponsorPercentage = defaultFiscalFee[_fiscalSponser];
+                if(_fiscalSponsorPercentage == 0){
+                    _fiscalSponsorPercentage = 1000; // 10%
+                }
             }
             else{
             
@@ -634,6 +637,15 @@ contract Marketplace is
         require(success, "Transfer  fee failed");
     }
 
+    function setFiscalSponsorPercentage(uint256 _fiscalSponsorPercentage) external {
+        
+        require(_fiscalSponsorPercentage >= 100  && _fiscalSponsorPercentage <= 1000, 
+            "_fiscalSponsorPercentage must be between 1 to 10");
+
+        defaultFiscalFee[msg.sender] = _fiscalSponsorPercentage;
+
+        emit SetFiscalFee(msg.sender, _fiscalSponsorPercentage);
+    }
 
     function pause() public onlyOwner {
         _pause();
@@ -726,6 +738,4 @@ contract Marketplace is
 // 0xdDb68Efa4Fdc889cca414C0a7AcAd3C5Cc08A8C5
 
 //  mint :0xd8b934580fcE35a11B58C6D73aDeE468a2833fa8
-
-
 
