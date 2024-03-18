@@ -6,6 +6,7 @@ import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 interface IBEP20 {        
     
@@ -14,19 +15,16 @@ interface IBEP20 {
     function allowance(address owner, address spender) external view returns (uint256);
     function transferFrom(address sender,address recipient,uint256 amount) external returns (bool);
 }
-interface IPancakeRouter01 {
-    function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts);
-}
 
 
 contract Main is Initializable, PausableUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
 
 
-     
     IBEP20 public usdtToken;
-    IPancakeRouter01 public pancakeRouter; 
+    AggregatorV3Interface public priceFeedUsdt_to_BNB;
+    AggregatorV3Interface public priceFeed_DAI_to_BNB;
 
-    uint256 public registrerationFee;
+    uint256 public minBnbAmount;
     
     address payable public maintanceWallte;
     address payable public bnbHolderWallet;
@@ -56,8 +54,8 @@ contract Main is Initializable, PausableUpgradeable, OwnableUpgradeable, UUPSUpg
     mapping(address => mapping (uint256 => StakeInfo)) public stakeInfo;
 
 
+    event Register(address regissteredUser, uint256 usdtAmount);
     event Withdraw(address _userAddress, uint256 withdrawAmount );
-    event Register(address regissteredUser, address referalPerson, uint256 usdtAmount);
     event KGCTransfer(address _from, address _to, uint256 _amount);
     event Stake(address _staker, uint256 _stakeAmount, address _directReferal, uint256 _directreferalBonus);
 
@@ -67,26 +65,47 @@ contract Main is Initializable, PausableUpgradeable, OwnableUpgradeable, UUPSUpg
         _disableInitializers();
     }
 
+    // USDT / BNB = 0xD5c40f5144848Bd4EF08a9605d860e727b991513 mainneet BSC
+
+   // DAI / BNB = 0x0630521aC362bc7A19a4eE44b57cE72Ea34AD01c:  testnet bsc 
 
 
-    function initialize(address initialOwner) initializer public {
+    function initialize(address initialOwner,address _priceFeedUsdt_to_BNB,address _priceFeed_DAI_to_BNB) initializer public {
         __Pausable_init();
         __Ownable_init(initialOwner);
         __UUPSUpgradeable_init();
 
-        registrerationFee = 1 ether;
+        minBnbAmount = 1 ether;
+        priceFeedUsdt_to_BNB = AggregatorV3Interface(_priceFeedUsdt_to_BNB);
+        priceFeedUsdt_to_BNB = AggregatorV3Interface(_priceFeed_DAI_to_BNB);
 
 
+    }
+
+    // Function to fetch the latest BNB/USD price from Chainlink oracle
+    function getLatestBnbPrice() public view returns (uint256) {
+        (, int256 price, , , ) = priceFeedUsdt_to_BNB.latestRoundData();
+        require(price > 0, "Invalid BNB/USD price from oracle");
+        return uint256(price);
+    }
+    // Function to fetch the latest BNB/USD price from Chainlink oracle
+    function GetpriceFeed_DAI_to_BNB() public view returns (uint256) {
+        (, int256 price, , , ) = priceFeed_DAI_to_BNB.latestRoundData();
+        require(price > 0, "Invalid BNB/USD price from oracle");
+        return uint256(price);
     }
 
 
     function registerUserWith(uint256 usdtAmount) external payable whenNotPaused {
         
+        // uint256 latestBnbPrice = getLatestBnbPrice();
+        uint256 latestBnbPrice = GetpriceFeed_DAI_to_BNB();
+        
+        uint256 minUsdtAmount = minBnbAmount * latestBnbPrice; // Minimum USDT equivalent
 
-        require (usdtAmount == registrerationFee || msg.value == registrerationFee, "Invalid fee.");
+        require(msg.value >= minBnbAmount || msg.value * latestBnbPrice >= minUsdtAmount, "Insufficient payment");
         require(!userRegistered[msg.sender].registered, "You already registered!");
 
-        userRegistered[msg.sender].hasReferal = true;
         userRegistered[msg.sender].registered = true;
 
         if (msg.value == 1 ether) {
@@ -106,7 +125,7 @@ contract Main is Initializable, PausableUpgradeable, OwnableUpgradeable, UUPSUpg
 
     }
 
-
+    Stake
 
 
 
@@ -126,4 +145,3 @@ contract Main is Initializable, PausableUpgradeable, OwnableUpgradeable, UUPSUpg
         override
     {}
 }
-
