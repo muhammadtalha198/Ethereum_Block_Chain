@@ -26,14 +26,14 @@ contract KGCStakingContract is Ownable {
     uint256 private contractBalance;
     // address routeraddress = 0xD99D1c33F9fC3444f8101754aBC46c52416550D1; BNBTestNet : PancakeSwapV2
 
-    uint256  public constant registrerationFee = 5 * 1e18;
-    uint256 public constant minimumAmount = 10 * 1e18;
-    uint256 public constant maximumAmount = 1000 * 1e18;
-    uint256 public constant perdayPercentage = 40 ;  // 0.40%
+    uint256  public constant REGISTERATION_FEE = 5 * 1e18;
+    uint256 public constant MINIMUM_AMOUNT = 10 * 1e18;
+    uint256 public constant MAXIMUM_AMOUNT = 1000 * 1e18;
+    uint256 public constant PER_DAY_PERCENTAGE = 40 ;  // 0.40%
 
-    uint256 public constant minimumWithdrawlAmount= 10 * 1e18;
-    uint256 public constant withdrawlDeductionPercentage = 500;  // 5%
-    uint256 public constant directReferalPercentage = 1000; // 10%
+    uint256 public constant MINIMUM_WITHDRAWL_AMOUNT= 10 * 1e18;
+    uint256 public constant WITHDRAWL_DEDUCTION_PERCENTAGE = 500;  // 5%
+    uint256 public constant DIRECT_REFERAL_PERCENTAGE = 1000; // 10%
     
     address usdcAddress;
     address kgcAddress;
@@ -66,9 +66,9 @@ contract KGCStakingContract is Ownable {
     
     event Withdraw(address indexed _userAddress, uint256 withdrawAmount );
     event KGCTransfer(address indexed _from, address indexed _to, uint256 _amount);
-    event amountAdded(address indexed _sender, uint256 indexed _amount,uint256 contractBalance);
+    event AmountAdded(address indexed _sender, uint256  _amount,uint256 contractBalance);
     event Register(address indexed regissteredUser, address indexed referalPerson, uint256 _fee);
-    event Stake(address indexed _staker, uint256 indexed _stakeAmount, address indexed _directReferal, uint256 _directreferalBonus);
+    event Stake(address indexed _staker, uint256 _stakeAmount, address indexed _directReferal, uint256 _directreferalBonus);
     
     
     constructor(address initialOwner, address _kgcToken, address _usdcToken, address _pancakeRouter) Ownable(initialOwner) {
@@ -85,7 +85,7 @@ contract KGCStakingContract is Ownable {
     function registerUser(uint256 _fee, address referalAddress) external  {
         
         require(referalAddress != msg.sender && referalAddress != address(0), "invalid referal Address!");
-        require (_fee == registrerationFee, "Invalid fee.");
+        require (_fee == REGISTERATION_FEE, "Invalid fee.");
         require(!userRegistered[msg.sender].registered, "You already registered!");
 
         userRegistered[msg.sender].registered = true;
@@ -100,8 +100,8 @@ contract KGCStakingContract is Ownable {
    
     function stakeTokens(uint256 _amount) external  {
 
-        require(_amount >= minimumAmount && _amount <= maximumAmount, "invalid amount!");
-        // require(userRegistered[msg.sender].registered, "Plaese register!");
+        require(_amount >= MINIMUM_AMOUNT && _amount <= MAXIMUM_AMOUNT, "invalid amount!");
+        require(userRegistered[msg.sender].registered, "Plaese register!");
         require(userRegistered[msg.sender].noOfStakes <= 100,"Use different acccount for newStakes!");
 
         require(kgcToken.balanceOf(msg.sender) >= _amount,"insufficient Kgc balancce.");
@@ -111,22 +111,22 @@ contract KGCStakingContract is Ownable {
         stakeInfo[msg.sender][stakeId].staked = true;
         stakeInfo[msg.sender][stakeId].stakeAmount = _amount;
         stakeInfo[msg.sender][stakeId].stakeStartTime = block.timestamp;
-        stakeInfo[msg.sender][stakeId].stakeEndTime = block.timestamp + (60 minutes);
+        stakeInfo[msg.sender][stakeId].stakeEndTime = block.timestamp + (500 days);
         userRegistered[msg.sender].totalStakedAmount = userRegistered[msg.sender].totalStakedAmount + (_amount);
         userRegistered[msg.sender].noOfStakes++;
         
             
-       address _referalPerson = userRegistered[msg.sender].ownerOf;
+        address _referalPerson = userRegistered[msg.sender].ownerOf;
+
+        uint256 directReferal = calculatePercentage(_amount, DIRECT_REFERAL_PERCENTAGE);
         
-        userRegistered[_referalPerson].referalRewards = userRegistered[_referalPerson].referalRewards + 
-        (calculatePercentage(_amount, directReferalPercentage));
-        userRegistered[_referalPerson].totalReward = userRegistered[_referalPerson].totalReward + 
-        (calculatePercentage(_amount, directReferalPercentage));
+        userRegistered[_referalPerson].referalRewards = userRegistered[_referalPerson].referalRewards + directReferal;
+        userRegistered[_referalPerson].totalReward = userRegistered[_referalPerson].totalReward + directReferal;
 
         bool success = kgcToken.transferFrom(msg.sender, address(this), _amount);
         require(success, "Transfer failed");
 
-        emit Stake(msg.sender, _amount, _referalPerson, calculatePercentage(_amount, directReferalPercentage));
+        emit Stake(msg.sender, _amount, _referalPerson, directReferal);
         
     }
 
@@ -134,9 +134,16 @@ contract KGCStakingContract is Ownable {
    function withdrawAmount(uint256 _amount) external  {
 
         require(_amount != 0, "invalid Amount");
-        require(userRegistered[msg.sender].registered, "Plaese register!");  
+        require(userRegistered[msg.sender].registered, "Plaese register!");
+        require(userRegistered[msg.sender].noOfStakes > 0, "Plaese stake first!");
 
-        require(_amount >= minimumWithdrawlAmount,"invalid Amount.");
+
+        uint256 lastStakeNo = userRegistered[msg.sender].noOfStakes - 1;
+        
+        if(block.timestamp < stakeInfo[msg.sender][lastStakeNo].stakeEndTime){
+            require(_amount >= MINIMUM_WITHDRAWL_AMOUNT,"invalid Amount.");
+        }
+        
 
         if(userRegistered[msg.sender].totalReward < _amount){
 
@@ -146,14 +153,14 @@ contract KGCStakingContract is Ownable {
 
                 for(uint256 i=0; i<totalStakeIds; i++){ 
                 
-                    if(stakeInfo[msg.sender][i].previousDays < 60){
+                    if(stakeInfo[msg.sender][i].previousDays < 500){
                 
                         if(block.timestamp > stakeInfo[msg.sender][i].stakeEndTime){
 
                             uint256 previousDays = stakeInfo[msg.sender][i].previousDays;                           
-                            uint256 rewardDays = 60 - previousDays;
+                            uint256 rewardDays = 500 - previousDays;
                             
-                            stakeInfo[msg.sender][i].previousDays = 60;
+                            stakeInfo[msg.sender][i].previousDays = 500;
                             stakeRewardCalculation(rewardDays, msg.sender, i);
                         }
                         else{
@@ -184,7 +191,7 @@ contract KGCStakingContract is Ownable {
         userRegistered[msg.sender].totalReward = userRegistered[msg.sender].totalReward - (_amount);      
         userRegistered[msg.sender].withdrawedAmount = userRegistered[msg.sender].withdrawedAmount + (_amount);
         
-        uint256 deductedAmount = calculatePercentage( _amount,withdrawlDeductionPercentage);
+        uint256 deductedAmount = calculatePercentage( _amount,WITHDRAWL_DEDUCTION_PERCENTAGE);
         _amount = _amount - (deductedAmount);
         
         require(kgcToken.balanceOf(address(this)) >= _amount, "Admin need to topup the wallet!");
@@ -199,7 +206,7 @@ contract KGCStakingContract is Ownable {
 
     function stakeRewardCalculation(uint256 totaldays, address userAddress, uint256 stakeId) private  {
                             
-            uint256 totalPercentage = perdayPercentage * (totaldays);
+            uint256 totalPercentage = PER_DAY_PERCENTAGE * (totaldays);
             uint256 totalReward = calculatePercentage(stakeInfo[userAddress][stakeId].stakeAmount, totalPercentage);
 
             userRegistered[userAddress].totalReward = userRegistered[userAddress].totalReward + (totalReward);
@@ -223,7 +230,7 @@ contract KGCStakingContract is Ownable {
         require(_endTime > _startTime, "End time must be greater than start time");
 
         uint256 timeDifference = _endTime - (_startTime);
-        uint256 totalDays = (timeDifference / (1 minutes));
+        uint256 totalDays = (timeDifference / (1 days));
 
         return totalDays;
     }
@@ -273,7 +280,7 @@ contract KGCStakingContract is Ownable {
         bool success = kgcToken.transferFrom(msg.sender, address(this), _amount);
         require(success, "Transfer failed");
 
-        emit amountAdded(msg.sender, _amount, kgcToken.balanceOf(address(this)));
+        emit AmountAdded(msg.sender, _amount, kgcToken.balanceOf(address(this)));
     }
 
     function Contractbalance() external view returns (uint256 balance){
@@ -282,4 +289,3 @@ contract KGCStakingContract is Ownable {
 
 
 }
-
