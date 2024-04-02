@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.20;
 
-abstract contract Ownable  {
+contract Ownable  {
     
     address[] private _owners;
     uint256 private _approvals;
@@ -68,14 +68,22 @@ abstract contract Ownable  {
         }
     }
 
-     function grantApproval() public onlyOwner {
+    function grantApproval() public onlyOwner {
         
         require(isOwner(msg.sender), "Only owner can grant approval");
+        
         if(_approvals != 0){
             require(msg.sender != _firstApproval, "this owner already approved this.");
         }
 
         _approvals++;
+
+        if(_approvals == 1){
+            _firstApproval = msg.sender;
+        }
+        else{
+            _firstApproval = address(0);  
+        }
 
          emit ApprovalGranted(msg.sender, _approvals);
   }
@@ -86,6 +94,7 @@ abstract contract Ownable  {
         _approvals = 0;
     }
 
-
 }
 
+
+// ["0x5B38Da6a701c568545dCfcB03FcB875f56beddC4","0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2"]
