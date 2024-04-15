@@ -34,18 +34,21 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
     uint256 plinkoOwnershipPoolPercentage;
     uint256 dripOwnershipPoolPercentage;
     
-    uint256 public TreasuryPool;
-    uint256 public OwnerShipPool;
+    uint256 public TreasuryPoolAmount;
+    uint256 public OwnerShipPoolAmount;
+
+    uint256 public noOfUsers;
 
     struct UserRegistered{
         bool registered;
-        uint256 withdrawedAmount;
+        uint256 receivedAmount;
         uint256 totalStakedAmount;
 
     }
 
+    mapping(uint256 => address) totalUsers;
     mapping(address => UserRegistered) public userRegistered;
-
+    
     event FundTransfer (address sender,uint256 usdcAmount);
     event Withdraw (address recipient, uint256 usdcAmount);
     event FundTransferToPool (address sender,uint256 usdcAmount);
@@ -80,6 +83,8 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
 
         userRegistered[msg.sender].registered = true;
         userRegistered[msg.sender].totalStakedAmount += _amount;
+        totalUsers[noOfUsers] = msg.sender;
+        noOfUsers++;
 
         bool success =usdcToken.transferFrom(msg.sender,usdcHolderWallet,_amount);
         require(success, "Transfer failed");
@@ -99,8 +104,8 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
         uint256 treasuryFee = calculatePercentage(_amount, treasuryPoolPercentage);
 
         totalDFevFee = totalDFevFee.add(devFee);
-        OwnerShipPool = OwnerShipPool.add(ownerShipFee);
-        TreasuryPool = TreasuryPool.add(treasuryFee);
+        OwnerShipPoolAmount = OwnerShipPoolAmount.add(ownerShipFee);
+        TreasuryPoolAmount = TreasuryPoolAmount.add(treasuryFee);
 
         bool success = usdcToken.transferFrom(msg.sender,DevFeeWallet,devFee);
         require(success, "Transfer failed");
@@ -124,14 +129,41 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
         uint256 treasuryFee = calculatePercentage(_amount, treasuryPoolPercentahge);
 
         totalDFevFee = totalDFevFee.add(devFee);
-        OwnerShipPool = OwnerShipPool.add(ownerShipFee);
-        TreasuryPool = TreasuryPool.add(treasuryFee);
+        OwnerShipPoolAmount = OwnerShipPoolAmount.add(ownerShipFee);
+        TreasuryPoolAmount = TreasuryPoolAmount.add(treasuryFee);
 
         bool success = usdcToken.transferFrom(msg.sender,DevFeeWallet,devFee);
         require(success, "Transfer failed");
         
         bool success1 = usdcToken.transferFrom(msg.sender,address(this),_amount);
         require(success1, "Transfer failed");
+
+
+    }
+
+    function WeeklyTransfer() external  {
+        
+        uint256 remainFiftyTPoolAmount = calculatePercentage(TreasuryPoolAmount, 5000);
+        uint256 perPerson = remainFiftyTPoolAmount.div(noOfUsers);
+        
+        
+        uint256 remainFiftyOPool = calculatePercentage(OwnerShipPoolAmount, 5000);
+
+        uint256 dividentPayoutOPoolAmount = calculatePercentage(remainFiftyOPool, 7500);
+        uint256 fifteenPercenntToTPoolAmount = calculatePercentage(remainFiftyOPool, 1500);
+        uint256 tenPercenntToMaintenceAmount = calculatePercentage(remainFiftyOPool, 1000);
+
+
+        for(uint256 i = 0; i < noOfUsers; i++){
+
+            uint256 eachSharePercentage = (userRegistered[totalUsers[i]].totalStakedAmount.mul(100)).div(OwnerShipPoolAmount);
+            uint256 eachsendAmount = calculatePercentage(dividentPayoutOPoolAmount, eachSharePercentage);
+            userRegistered[totalUsers[i]].receivedAmount = eachsendAmount;
+           
+            bool success1 = usdcToken.transfer(totalUsers[i], eachSharePercentage);
+            require(success1, "Transfer failed");
+
+        }
 
 
     }
@@ -154,6 +186,8 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
 
         emit Withdraw(msg.sender, _amount);
     }
+
+
 
 
 
