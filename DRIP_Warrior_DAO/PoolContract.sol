@@ -143,6 +143,28 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
 
     function WeeklyTransfer() external  {
         
+        
+        (uint256 perPerson,uint256 dividentPayoutOPoolAmount)  = perPoolCalculation();
+
+    
+        for(uint256 i = 0; i < noOfUsers; i++){
+
+            uint256 eachSharePercentage = (userRegistered[totalUsers[i]].totalStakedAmount.mul(100)).div(OwnerShipPoolAmount);
+            uint256 eachsendAmount = calculatePercentage(dividentPayoutOPoolAmount, eachSharePercentage);
+            userRegistered[totalUsers[i]].receivedAmount = eachsendAmount;
+           
+            bool success = usdcToken.transfer(totalUsers[i], eachsendAmount);
+            require(success, "Transfer failed");
+            
+            bool success1 = usdcToken.transfer(totalUsers[i], perPerson);
+            require(success1, "Transfer failed");
+
+        }
+
+    }
+
+    function perPoolCalculation() private returns(uint256, uint256){
+        
         uint256 remainFiftyTPoolAmount = calculatePercentage(TreasuryPoolAmount, 5000);
         uint256 perPerson = remainFiftyTPoolAmount.div(noOfUsers);
         
@@ -153,19 +175,12 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
         uint256 fifteenPercenntToTPoolAmount = calculatePercentage(remainFiftyOPool, 1500);
         uint256 tenPercenntToMaintenceAmount = calculatePercentage(remainFiftyOPool, 1000);
 
+        TreasuryPoolAmount = TreasuryPoolAmount.add(fifteenPercenntToTPoolAmount);
+            
+        bool success1 = usdcToken.transfer(maintanceWallte, tenPercenntToMaintenceAmount);
+        require(success1, "Transfer failed");
 
-        for(uint256 i = 0; i < noOfUsers; i++){
-
-            uint256 eachSharePercentage = (userRegistered[totalUsers[i]].totalStakedAmount.mul(100)).div(OwnerShipPoolAmount);
-            uint256 eachsendAmount = calculatePercentage(dividentPayoutOPoolAmount, eachSharePercentage);
-            userRegistered[totalUsers[i]].receivedAmount = eachsendAmount;
-           
-            bool success1 = usdcToken.transfer(totalUsers[i], eachSharePercentage);
-            require(success1, "Transfer failed");
-
-        }
-
-
+        return (perPerson, dividentPayoutOPoolAmount);
     }
 
     function calculatePercentage(uint256 _totalStakeAmount,uint256 percentageNumber) private pure returns(uint256) {
@@ -186,9 +201,6 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
 
         emit Withdraw(msg.sender, _amount);
     }
-
-
-
 
 
     function pause() public onlyOwner {
