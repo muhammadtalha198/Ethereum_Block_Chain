@@ -1,4 +1,3 @@
-
 // SPDX-License-Identifier: MIT
 // Compatible with OpenZeppelin Contracts ^5.0.0
 pragma solidity ^0.8.20;
@@ -35,8 +34,8 @@ contract Market is Ownable {
     uint256 public noOfTotalUsers;
 
     mapping(uint256 =>address) public eachUser;
-    mapping(address => UserInfo) public userInfo;
     mapping(address => MarketInfo) public marketInfo;
+    mapping(address => mapping(address => UserInfo)) public userInfo;
     
 
    
@@ -47,7 +46,8 @@ contract Market is Ownable {
     event SellEvent(address indexed user, uint256 outcomeIndex, uint256 _amount, uint256 returnAmount);
 
 
-    constructor(address initialOwner,
+    constructor(
+        address initialOwner,
         address _usdcToken,
         uint256 _endTime ) 
 
@@ -60,17 +60,21 @@ contract Market is Ownable {
 
     }
 
-    function BUY(uint256 outcomeIndex, uint256 _amount) external {
+    function BUY(uint256 _amount, uint256 _betOn) external {
        
+        require(_betOn == 0 || _betOn == 1, "you either bet yes or no.");
+        require(_amount > 0, "Bet amount must be greater than 0");
         require(marketInfo[address(this)].marketOpen, "Market is not open");
         require(block.timestamp < marketInfo[address(this)].endTime, "Market has ended");
-        require(_amount > 0, "Bet amount must be greater than 0");
 
-        
+        userInfo[address(this)][msg.sender].bet = true;
+        userInfo[address(this)][msg.sender].betOn = _betOn;
+        userInfo[address(this)][msg.sender].betAmount = _amount;
+       
         bool success = usdcToken.transferFrom(msg.sender, address(this), _amount);
         require(success, "Transfer failed");
 
-        emit BuyEvent(msg.sender, outcomeIndex, _amount);
+        emit BuyEvent(msg.sender, _amount);
     }
 
     function SELL(uint256 outcomeIndex, uint256 _amount) external {
