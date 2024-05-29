@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Compatible with OpenZeppelin Contracts ^5.0.0
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.22;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -21,7 +21,6 @@ contract Market is Ownable {
         bool marketOpen;
         uint256 endTime;
         uint256 totalBets;
-        uint256[2] YesOrNo;
         uint256 totalAmount;
         uint256[2] initialPrice;
         uint256 totalBetsOnYes;
@@ -76,12 +75,31 @@ contract Market is Ownable {
         userInfo[address(this)][msg.sender].bet = true;
         userInfo[address(this)][msg.sender].betOn = _betOn;
         userInfo[address(this)][msg.sender].betAmount = _amount;
+
+        if(_betOn == 0 ){
+          marketInfo[address(this)].totalBetsOnNo++;  
+
+        }else {
+          marketInfo[address(this)].totalBetsOnYes++;  
+        }
+
+        (marketInfo[address(this)].initialPrice[0],marketInfo[address(this)].initialPrice[1]) = 
+            PriceCalculation(marketInfo[address(this)].totalBetsOnNo, marketInfo[address(this)].totalBetsOnYes);
        
         bool success = usdcToken.transferFrom(msg.sender, address(this), _amount);
         require(success, "Transfer failed");
 
         // emit BuyEvent(msg.sender, _amount);
     }
+
+
+    function PriceCalculation(uint256 NoUsers, uint256 yesUsers) public pure returns(uint256 yesPrice, uint256 noPrice){
+       
+        yesPrice = ((yesUsers * 100)/(yesUsers + NoUsers));
+        noPrice = ((NoUsers * 100)/(yesUsers + NoUsers));
+
+        return(noPrice, yesPrice);
+    } 
 
 //     function SELL(uint256 outcomeIndex, uint256 _amount) external {
         
