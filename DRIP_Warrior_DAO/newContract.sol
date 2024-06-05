@@ -30,10 +30,12 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
     uint256 public devFeePercentage;
     uint256 public totalDevFee;
 
-    uint256 public pTPoolPercentage;
+
     uint256 public pOPoolPercentage;
-    
     uint256 public dOPoolPercentage;
+    uint256 public lOPoolPercentage;
+    uint256 public wOPoolPercentage;
+    
     
     uint256 public treasuryPoolAmount;
     uint256 public ownerShipPoolAmount;
@@ -76,10 +78,11 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
 
             usdcToken = IBEP20(_usdcAddress);
 
-            pTPoolPercentage = 5100; // 51 %
-            devFeePercentage = 1500; //15 %
+            devFeePercentage = 1500; // 15 %
             pOPoolPercentage = 3400; // 34 %
-            dOPoolPercentage = 1000; // 10% 
+            dOPoolPercentage = 1000; // 10 % 
+            lOPoolPercentage = 5000; // 50 %
+            wOPoolPercentage = 800;  // 8 %
 
             maintanceWallte = _maintanceWallte;
             usdcHolderWallet = _usdcHolderWallet;
@@ -166,7 +169,7 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
     }
 
 
-    function dripWarriorFunds(uint256 _amount)   external {
+    function liquidWarriorFunds(uint256 _amount)   external {
 
         require(_amount != 0,"invalid _amount!");
         
@@ -181,7 +184,7 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
 
     }
 
-    function dWFundsCalculations(uint256 _amount) private returns(uint256) {
+    function lWFundsCalculations(uint256 _amount) private returns(uint256) {
 
         uint256 devFee = calculatePercentage(_amount, devFeePercentage);
         uint256 ownerShipFee = calculatePercentage(_amount, dOPoolPercentage);
@@ -198,7 +201,7 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
         return devFee;
     }
 
-    function dripWarriorFunds(uint256 _amount)   external {
+    function warriorRushFunds(uint256 _amount)   external {
 
         require(_amount != 0,"invalid _amount!");
         
@@ -213,7 +216,7 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
 
     }
 
-    function dWFundsCalculations(uint256 _amount) private returns(uint256) {
+    function wRFundsCalculations(uint256 _amount) private returns(uint256) {
 
         uint256 devFee = calculatePercentage(_amount, devFeePercentage);
         uint256 ownerShipFee = calculatePercentage(_amount, dOPoolPercentage);
@@ -320,4 +323,3 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
 // DeV_Fee_Wallet: 0x4B0897b0513fdC7C541B6d9D7E929C4e5364D2dB
 // maintance_wallet: 0x583031D1113aD414F02576BD6afaBfb302140225
 // usdc_Holder_address : 0xdD870fA1b7C4700F2BD7f44238821C26f7392148
-
