@@ -108,12 +108,34 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
 
     }
 
+    // plinkoFunds = 0;
+    // dripWarriorFunds = 1;
+    // liquidWarriorFunds = 2;
+    // warriorRushFunds = 4;
 
-    function plinkoFunds(uint256 _amount)   external {
+    function AddFunds(uint256 _amount, uint256 _projectNo)   external {
 
         require(_amount != 0,"invalid _amount!");
 
-        uint256 devFee = pFundsCaculations(_amount);
+        uint256 devFee;
+
+        if(_projectNo == 0){
+            
+             devFee = calculateFees(_amount, devFeePercentage, pOPoolPercentage);
+        } 
+        else if(_projectNo == 1) {
+            
+             devFee = calculateFees(_amount, devFeePercentage, dOPoolPercentage); 
+        }
+        else if(_projectNo == 2){
+
+             devFee = calculateFees(_amount, devFeePercentage, lOPoolPercentage);
+        }
+        else {
+
+             devFee = calculateFees(_amount, devFeePercentage, wOPoolPercentage);
+        }
+
 
         bool success = usdcToken.transferFrom(msg.sender,devFeeWallet,devFee);
         require(success, "Transfer failed");
@@ -123,106 +145,14 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
 
     }
 
-    function pFundsCaculations(uint256 _amount) private returns(uint256){
+
+    function calculateFees(uint256 _amount, uint256 _devFeePercentage, uint256 _poolPercentage) private returns(uint256) {
         
-        uint256 devFee = calculatePercentage(_amount, devFeePercentage);
-        uint256 ownerShipFee = calculatePercentage(_amount, pOPoolPercentage);
-        uint256 treasuryFee = calculatePercentage(_amount, pTPoolPercentage);
+        uint256 devFee = calculatePercentage(_amount, _devFeePercentage);
+        uint256 ownerShipFee = calculatePercentage(_amount, _poolPercentage);
 
-        totalDevFee = totalDevFee.add(devFee);
-        ownerShipPoolAmount = ownerShipPoolAmount.add(ownerShipFee);
-        treasuryPoolAmount = treasuryPoolAmount.add(treasuryFee);
-
-        return devFee;
-    }
-
-    function dripWarriorFunds(uint256 _amount)   external {
-
-        require(_amount != 0,"invalid _amount!");
-        
-        uint256 devFee = dWFundsCalculations(_amount);
-
-        bool success = usdcToken.transferFrom(msg.sender,devFeeWallet,devFee);
-        require(success, "Transfer failed");
-        
-        bool success1 = usdcToken.transferFrom(msg.sender,address(this),_amount.sub(devFee));
-        require(success1, "Transfer failed");
-
-
-    }
-
-    function dWFundsCalculations(uint256 _amount) private returns(uint256) {
-
-        uint256 devFee = calculatePercentage(_amount, devFeePercentage);
-        uint256 ownerShipFee = calculatePercentage(_amount, dOPoolPercentage);
-        
         uint256 tPoolPercentage = 10000;
-        tPoolPercentage = tPoolPercentage.sub((devFeePercentage.add(dOPoolPercentage)));
-        
-        uint256 treasuryFee = calculatePercentage(_amount, tPoolPercentage);
-
-        totalDevFee = totalDevFee.add(devFee);
-        ownerShipPoolAmount = ownerShipPoolAmount.add(ownerShipFee);
-        treasuryPoolAmount = treasuryPoolAmount.add(treasuryFee);
-
-        return devFee;
-    }
-
-
-    function liquidWarriorFunds(uint256 _amount)   external {
-
-        require(_amount != 0,"invalid _amount!");
-        
-        uint256 devFee = dWFundsCalculations(_amount);
-
-        bool success = usdcToken.transferFrom(msg.sender,devFeeWallet,devFee);
-        require(success, "Transfer failed");
-        
-        bool success1 = usdcToken.transferFrom(msg.sender,address(this),_amount.sub(devFee));
-        require(success1, "Transfer failed");
-
-
-    }
-
-    function lWFundsCalculations(uint256 _amount) private returns(uint256) {
-
-        uint256 devFee = calculatePercentage(_amount, devFeePercentage);
-        uint256 ownerShipFee = calculatePercentage(_amount, dOPoolPercentage);
-        
-        uint256 tPoolPercentage = 10000;
-        tPoolPercentage = tPoolPercentage.sub((devFeePercentage.add(dOPoolPercentage)));
-        
-        uint256 treasuryFee = calculatePercentage(_amount, tPoolPercentage);
-
-        totalDevFee = totalDevFee.add(devFee);
-        ownerShipPoolAmount = ownerShipPoolAmount.add(ownerShipFee);
-        treasuryPoolAmount = treasuryPoolAmount.add(treasuryFee);
-
-        return devFee;
-    }
-
-    function warriorRushFunds(uint256 _amount)   external {
-
-        require(_amount != 0,"invalid _amount!");
-        
-        uint256 devFee = dWFundsCalculations(_amount);
-
-        bool success = usdcToken.transferFrom(msg.sender,devFeeWallet,devFee);
-        require(success, "Transfer failed");
-        
-        bool success1 = usdcToken.transferFrom(msg.sender,address(this),_amount.sub(devFee));
-        require(success1, "Transfer failed");
-
-
-    }
-
-    function wRFundsCalculations(uint256 _amount) private returns(uint256) {
-
-        uint256 devFee = calculatePercentage(_amount, devFeePercentage);
-        uint256 ownerShipFee = calculatePercentage(_amount, dOPoolPercentage);
-        
-        uint256 tPoolPercentage = 10000;
-        tPoolPercentage = tPoolPercentage.sub((devFeePercentage.add(dOPoolPercentage)));
+        tPoolPercentage = tPoolPercentage.sub(_devFeePercentage.add(_poolPercentage));
         
         uint256 treasuryFee = calculatePercentage(_amount, tPoolPercentage);
 
