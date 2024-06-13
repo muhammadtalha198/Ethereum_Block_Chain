@@ -29,8 +29,11 @@ contract Market is Ownable {
 
     struct UserInfo{
         bool bet;
+        bool setForSale;
         uint256 betOn;
         uint256 betAmount;
+        uint256 saleAmount;
+
     }
 
     uint256 public noOfTotalUsers;
@@ -70,7 +73,7 @@ contract Market is Ownable {
         require(_betOn == 0 || _betOn == 1, "you either bet yes or no.");
         require(_amount > 0, "Bet amount must be greater than 0");
         require(marketInfo[address(this)].marketOpen, "Market is not open");
-        require(block.timestamp < marketInfo[address(this)].endTime, "Market has ended");
+        // require(block.timestamp < marketInfo[address(this)].endTime, "Market has ended");
 
         userInfo[address(this)][msg.sender].bet = true;
         userInfo[address(this)][msg.sender].betOn = _betOn;
@@ -98,30 +101,72 @@ contract Market is Ownable {
         yesPrice = ((yesUsers * 100)/(yesUsers + NoUsers));
         noPrice = ((NoUsers * 100)/(yesUsers + NoUsers));
 
-        return(noPrice, yesPrice);
+        return(noPrice * 10000000000000000, yesPrice * 10000000000000000);
     } 
 
-//     function SELL(uint256 outcomeIndex, uint256 _amount) external {
+
+
+    function SELL(uint256 _noOfShares,uint256 _buyOf) external {
         
-//         require(state == MarketState.Open, "Market is not open");
-//         require(outcomeIndex < outcomes.length, "Invalid outcome index");
-//         require(block.timestamp < endTime, "Market has ended");
-//         require(_amount > 0, "Sell amount must be greater than 0");
+        require(_buyOf == 0 || _buyOf == 1, "wrong bet.");
+        require(userInfo[address(this)][msg.sender].bet, "didnt bet!");
+        require(_noOfShares > 0, "amount must be greater than 0");
+        require(marketInfo[address(this)].marketOpen, "Market is not open");
+        // require(block.timestamp < marketInfo[address(this)].endTime, "Market has ended");
         
-//         require(userBalances[msg.sender][outcomeIndex] >= _amount,"Insufficient balance");
+        uint256 noOfShares = calculateShares( userInfo[address(this)][msg.sender].betAmount, _buyOf);
+        require(noOfShares >= _noOfShares,"Insufficient shares");
 
-//         // Calculate the amount to return to the user based on their share of the outcome
-//         uint256 returnAmount = (_amount * outcomes[outcomeIndex].totalBets) / outcomes[outcomeIndex].totalSharess;
+        userInfo[address(this)][msg.sender].setForSale = true;
+        userInfo[address(this)][msg.sender].saleAmount += calculateInvestment( _noOfShares, _buyOf);
 
-//         // Update user balance and total bets for the outcome
-//         userBalances[msg.sender][outcomeIndex] -=  _amount;
-//         outcomes[outcomeIndex].totalBets -= _amount;
-//         outcomes[outcomeIndex].totalSharess -= returnAmount;
 
-//         require(usdcToken.transfer(msg.sender, returnAmount));
+        // emit SellEvent(msg.sender, outcomeIndex, _noOfShares, returnAmount);
+    }
 
-//         emit SellEvent(msg.sender, outcomeIndex, _amount, returnAmount);
-//     }
+    function calculateShares(uint256 _amount, uint256 _buyOf ) public view returns (uint256) {
+       
+        require(_amount > 0, "Amount must be greater than zero");
+        
+        uint256 result;
+       
+        if(_buyOf == 0){
+             result=  divide( _amount,  marketInfo[address(this)].initialPrice[_buyOf]);
+        }else{
+             result =  divide( _amount,  marketInfo[address(this)].initialPrice[_buyOf]);
+
+        }
+        return (result);
+    }
+
+    function divide(uint256 numerator, uint256 denominator) private pure returns (uint256) {
+        
+        require(denominator != 0, "Denominator cannot be zero");
+        uint256 result = (numerator * 100) / denominator;
+
+        return result;
+    }
+
+    // Function to calculate potential return
+    function calculatePotentialReturn(uint256 _amount,uint256 _buyOf) private view returns (uint256) {
+        
+        require(_amount > 0, "Amount must be greater than zero");
+       
+        uint256 shares = calculateShares(_amount, _buyOf);
+        uint256 potentialReturn = shares * 1e18 ;
+       
+        return potentialReturn;
+    }
+
+    function calculateInvestment(uint256 shares, uint256 _buyOf) public view returns (uint256) {
+        
+        require(shares > 0, "Shares must be greater than zero");
+        uint256 amountInCents = (shares * marketInfo[address(this)].initialPrice[_buyOf]) / 100;
+        
+        return amountInCents;
+    }
+
+    
 
 //      // Function to resolve the market and determine the winning outcome
 //     function resolveMarket(uint256 winningOutcomeIndex) external onlyOwner {
