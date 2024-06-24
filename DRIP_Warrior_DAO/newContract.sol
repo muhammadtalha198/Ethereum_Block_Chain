@@ -1,15 +1,10 @@
-
 // SPDX-License-Identifier: MIT
 // Compatible with OpenZeppelin Contracts ^5.0.0
-pragma solidity ^0.8.25;
+pragma solidity ^0.8.22;
 
-import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/math/SafeMathUpgradeable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-interface IBEP20 {        
+interface IERC20 {        
     
     function balanceOf(address account) external view returns (uint256);
     function transfer(address recipient, uint256 amount) external returns (bool);
@@ -17,239 +12,315 @@ interface IBEP20 {
     function transferFrom(address sender,address recipient,uint256 amount) external returns (bool);
 }
 
+contract Market is Ownable {
 
-contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
-    
-    using SafeMathUpgradeable for uint256;
-    IBEP20 public usdcToken;
+    IERC20 public usdcToken;
 
-    address  public maintanceWallte;
-    address  public usdcHolderWallet;
-    address  public devFeeWallet;
+    struct MarketInfo {
 
-    uint256 public devFeePercentage;
-    uint256 public totalDevFee;
-
-
-    uint256 public pOPoolPercentage;
-    uint256 public dOPoolPercentage;
-    uint256 public lOPoolPercentage;
-    uint256 public wOPoolPercentage;
-    
-    
-    uint256 public treasuryPoolAmount;
-    uint256 public ownerShipPoolAmount;
-    uint256 public totalStakedAmount;
-
-    uint256 public noOfUsers;
-
-    struct UserRegistered{
-
-        bool registered;
-        uint256 receivedAmount;
-        uint256 totalStakedAmount;
+        bool marketOpen;
+        uint256 endTime;
+        uint256 totalBets;
+        uint256 totalAmount;
+        uint256[2] initialPrice;
+        uint256 totalBetsOnYes;
+        uint256 totalBetsOnNo;
     }
 
-    mapping(uint256 => address) public totalUsers;
-    mapping(address => UserRegistered) public userRegistered;
-    
-    event FundTransfer (address sender, address recepient,uint256 usdcAmount);
-    event Withdraw (address recipient, uint256 usdcAmount);
-    event FundTransferToPool (address sender,uint256 usdcAmount);
-    
-    
-    /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
-    }
-
-    function initialize(
-        address initialOwner, 
-        address _usdcAddress,
-        address _maintanceWallte,
-        address _usdcHolderWallet,
-        address _DevFeeWallet
-
-        ) initializer public {
-            
-            __Pausable_init();
-            __Ownable_init(initialOwner);
-            __UUPSUpgradeable_init();
-
-            usdcToken = IBEP20(_usdcAddress);
-
-            devFeePercentage = 1500; // 15 %
-            pOPoolPercentage = 3400; // 34 %
-            dOPoolPercentage = 1000; // 10 % 
-            lOPoolPercentage = 5000; // 50 %
-            wOPoolPercentage = 800;  // 8 %
-
-            maintanceWallte = _maintanceWallte;
-            usdcHolderWallet = _usdcHolderWallet;
-            devFeeWallet = _DevFeeWallet;
-    }
-
-
-
-    function StakeTokens(uint256 _amount) external  {
-        
-        require(_amount != 0,"invalid _amount!");
-
-        userRegistered[msg.sender].registered = true;
-        userRegistered[msg.sender].totalStakedAmount += _amount;
-        totalUsers[noOfUsers] = msg.sender;
-        totalStakedAmount += _amount;
-        noOfUsers++;
-
-        bool success =usdcToken.transferFrom(msg.sender,usdcHolderWallet,_amount);
-        require(success, "Transfer failed");
-
-        emit FundTransfer(msg.sender,usdcHolderWallet, _amount);
+    struct UserInfo{
+        bool bet;
+        bool setForSale;
+        uint256 betOn;
+        uint256 onPrice;
+        uint256 betAmount;
+        uint256 saleAmount;
+        uint256 noOfShares;
 
     }
 
-    // plinkoFunds = 0;
-    // dripWarriorFunds = 1;
-    // liquidWarriorFunds = 2;
-    // warriorRushFunds = 4;
+    uint256 public noOfTotalUsers;
 
-    function AddFunds(uint256 _amount, uint256 _projectNo)   external {
-
-        require(_amount != 0,"invalid _amount!");
-
-        uint256 devFee;
-
-        if(_projectNo == 0){
-            
-             devFee = calculateFees(_amount, devFeePercentage, pOPoolPercentage);
-        } 
-        else if(_projectNo == 1) {
-            
-             devFee = calculateFees(_amount, devFeePercentage, dOPoolPercentage); 
-        }
-        else if(_projectNo == 2){
-
-             devFee = calculateFees(_amount, devFeePercentage, lOPoolPercentage);
-        }
-        else {
-
-             devFee = calculateFees(_amount, devFeePercentage, wOPoolPercentage);
-        }
-
-
-        bool success = usdcToken.transferFrom(msg.sender,devFeeWallet,devFee);
-        require(success, "Transfer failed");
-        
-        bool success1 = usdcToken.transferFrom(msg.sender,address(this),_amount.sub(devFee));
-        require(success1, "Transfer failed");
-
-    }
-
-
-    function calculateFees(uint256 _amount, uint256 _devFeePercentage, uint256 _poolPercentage) private returns(uint256) {
-        
-        uint256 devFee = calculatePercentage(_amount, _devFeePercentage);
-        uint256 ownerShipFee = calculatePercentage(_amount, _poolPercentage);
-
-        uint256 tPoolPercentage = 10000;
-        tPoolPercentage = tPoolPercentage.sub(_devFeePercentage.add(_poolPercentage));
-        
-        uint256 treasuryFee = calculatePercentage(_amount, tPoolPercentage);
-
-        totalDevFee = totalDevFee.add(devFee);
-        ownerShipPoolAmount = ownerShipPoolAmount.add(ownerShipFee);
-        treasuryPoolAmount = treasuryPoolAmount.add(treasuryFee);
-
-        return devFee;
-    }
-
-
-
-    function WeeklyTransfer() external  {
-        
-        ( uint256 remainFiftyTPoolAmount,uint256 dividentPayoutOPoolAmount)  = perPoolCalculation();
-
-        uint256 maxlimit;
+    mapping(uint256 =>address) public eachUser;
+    mapping(address => MarketInfo) public marketInfo;
+    mapping(address => mapping(address => UserInfo)) public userInfo;
     
-        for(uint256 i = 0; i < noOfUsers; i++){
 
-            uint256 eachSharePercentage = (userRegistered[totalUsers[i]].totalStakedAmount.mul(10000)).div(totalStakedAmount);
-            
-            uint256 eachSendAmount = calculatePercentage(dividentPayoutOPoolAmount, eachSharePercentage);
-            userRegistered[totalUsers[i]].receivedAmount += eachSendAmount;
-            
-            ownerShipPoolAmount -= eachSendAmount;
-           
-            uint256 perPersonFromTPool = calculatePercentage(userRegistered[totalUsers[i]].totalStakedAmount, 300);
-            
-            maxlimit += perPersonFromTPool;
-            treasuryPoolAmount -= perPersonFromTPool;
+   
+    event WithdrawWinner (uint256 indexed outcomeIndex);
+    event MarketResolved(uint256 indexed winningOutcomeIndex);
+    event RemainingTransfer(address owner,uint256 remainingBalance);
+    event BuyEvent(address indexed user,uint256 indexed outcomeIndex,uint256 amount);
+    event SellEvent(address indexed user, uint256 outcomeIndex, uint256 _amount, uint256 returnAmount);
 
-            require(maxlimit < remainFiftyTPoolAmount, "Amount is greater then 50%");
-            
-            bool success = usdcToken.transfer(totalUsers[i], eachSendAmount);
-            require(success, "Transfer failed");
-            
-            bool success1 = usdcToken.transfer(totalUsers[i], perPersonFromTPool);
-            require(success1, "Transfer failed");
 
-        }
+    constructor(
+        address initialOwner,
+        address _usdcToken,
+        uint256 _endTime ) 
+
+        Ownable(initialOwner) {
+
+            marketInfo[address(this)].endTime = _endTime;
+            marketInfo[address(this)].marketOpen = true ;
+            marketInfo[address(this)].initialPrice[0] = 500000000000000000;
+            marketInfo[address(this)].initialPrice[1] = 500000000000000000;
+            usdcToken = IERC20(_usdcToken);
+            
+
 
     }
 
-    function perPoolCalculation() private returns(uint256, uint256){
-        
-
-        uint256 remainFiftyOPool = calculatePercentage(ownerShipPoolAmount, 5000);
-        uint256 dividentPayoutOPoolAmount = calculatePercentage(remainFiftyOPool, 7500);
-        uint256 fifteenPercenntToTPoolAmount = calculatePercentage(remainFiftyOPool, 1500);
-        uint256 tenPercenntToMaintenceAmount = calculatePercentage(remainFiftyOPool, 1000);
-        uint256 remainFiftyTPoolAmount = calculatePercentage(treasuryPoolAmount, 5000);
-
-        treasuryPoolAmount = treasuryPoolAmount.add(fifteenPercenntToTPoolAmount);
+    function BUY(uint256 _amount, uint256 _betOn) external {
        
-        bool success1 = usdcToken.transfer(maintanceWallte, tenPercenntToMaintenceAmount);
-        require(success1, "Transfer failed");
+        require(_betOn == 0 || _betOn == 1, "you either bet yes or no.");
+        require(_amount > 0, "Bet amount must be greater than 0");
+        require(marketInfo[address(this)].marketOpen, "Market is not open");
+        // require(block.timestamp < marketInfo[address(this)].endTime, "Market has ended");
 
-        return (remainFiftyTPoolAmount,dividentPayoutOPoolAmount);
-    }
+        userInfo[address(this)][msg.sender].bet = true;
+        userInfo[address(this)][msg.sender].betOn = _betOn;
+        userInfo[address(this)][msg.sender].betAmount += _amount;
+        uint256 _noOfShares = calculateShares( userInfo[address(this)][msg.sender].betAmount, _buyOf);
+        userInfo[address(this)][msg.sender].noOfShares = _noOfShares;
 
-    function calculatePercentage(uint256 _totalStakeAmount,uint256 percentageNumber) private pure returns(uint256) {
-        
-        require(_totalStakeAmount !=0 , "_totalStakeAmount can not be zero");
-        require(percentageNumber !=0 , "_totalStakeAmount can not be zero");
-        uint256 serviceFee = _totalStakeAmount.mul(percentageNumber).div(10000);
-        
-        return serviceFee;
-    }
+        if(_betOn == 0 ){
+          marketInfo[address(this)].totalBetsOnNo++;  
 
-    function WithdrawAmount(uint256 _amount) external onlyOwner {
-        
-        require(_amount != 0,"invalid _amount!");
-        
-        bool success = usdcToken.transfer(msg.sender,_amount);
+        }else {
+          marketInfo[address(this)].totalBetsOnYes++;  
+        }
+
+        (marketInfo[address(this)].initialPrice[0],marketInfo[address(this)].initialPrice[1]) = 
+            PriceCalculation(marketInfo[address(this)].totalBetsOnNo, marketInfo[address(this)].totalBetsOnYes);
+       
+
+        bool success = usdcToken.transferFrom(msg.sender, address(this), _amount);
         require(success, "Transfer failed");
 
-        emit Withdraw(msg.sender, _amount);
+        // emit BuyEvent(msg.sender, _amount);
     }
 
 
-    function pause() public onlyOwner {
-        _pause();
+    function PriceCalculation(uint256 NoUsers, uint256 yesUsers) public pure returns(uint256 yesPrice, uint256 noPrice){
+       
+        yesPrice = ((yesUsers * 100)/(yesUsers + NoUsers));
+        noPrice = ((NoUsers * 100)/(yesUsers + NoUsers));
+
+        return(noPrice * 10000000000000000, yesPrice * 10000000000000000);
+    } 
+
+
+
+    function SELL(uint256 _noOfShares,uint256 _buyOf, uint256 _onPrice) external {
+        
+        require(userInfo[address(this)][msg.sender].bet, "didnt bet!");
+        require(_onPrice > 0, "amount must be greater than 0");
+        require(_noOfShares <= userInfo[address(this)][msg.sender].noOfShares, "not enough shares.");
+        require(_buyOf == userInfo[address(this)][msg.sender].betOn, "wrong bet.");
+        require(marketInfo[address(this)].marketOpen, "Market is not open");
+        // require(block.timestamp < marketInfo[address(this)].endTime, "Market has ended");
+        
+
+        userInfo[address(this)][msg.sender].setForSale = true;
+        userInfo[address(this)][msg.sender].saleAmount +=  _noOfShares;
+        userInfo[address(this)][msg.sender].onPrice = _onPrice;
+
+
+        // emit SellEvent(msg.sender, outcomeIndex, _noOfShares, returnAmount);
     }
 
-    function unpause() public onlyOwner {
-        _unpause();
+    function buySold(uint256 _noOfShares,uint256 _buyOf, uint256 _onPrice) public view {
+        
+        require(userInfo[address(this)][msg.sender].bet, "didnt bet!");
+        require(_noOfShares > 0 && _noOfShares <= userInfo[address(this)][msg.sender].saleAmount,
+            "amount must be greater than 0");
+        require(_buyOf == userInfo[address(this)][msg.sender].betOn, "wrong bet.");
+        require(marketInfo[address(this)].marketOpen, "Market is not open");
+        require(_onPrice == userInfo[address(this)][msg.sender].onPrice * _noOfShares, "wrong price!");
+
+        userInfo[address(this)][msg.sender].saleAmount -=  _noOfShares;
+        userInfo[address(this)][msg.sender].noOfShares -=  _noOfShares;
+
+        // emit BuySold(msg.sender, outcomeIndex, _noOfShares, returnAmount);
     }
 
-    function _authorizeUpgrade(address newImplementation)
-        internal
-        onlyOwner
-        override
-    {}
+    function calculateShares(uint256 _amount, uint256 _buyOf ) public view returns (uint256) {
+        
+        uint256 result;
+       
+        if(_buyOf == 0){
+             result=  divide( _amount,  marketInfo[address(this)].initialPrice[_buyOf]);
+        }else{
+             result =  divide( _amount,  marketInfo[address(this)].initialPrice[_buyOf]);
+        }
+        return (result);
+    }
+
+    function divide(uint256 numerator, uint256 denominator) private pure returns (uint256) {
+        
+        require(denominator != 0, "Denominator cannot be zero");
+        uint256 result = (numerator * 100) / denominator;
+
+        return result;
+    }
+
+    // Function to calculate potential return
+    function calculatePotentialReturn(uint256 _amount,uint256 _buyOf) private view returns (uint256) {
+        
+        require(_amount > 0, "Amount must be greater than zero");
+       
+        uint256 shares = calculateShares(_amount, _buyOf);
+        uint256 potentialReturn = shares * 1e18 ;
+       
+        return potentialReturn;
+    }
+
+    function calculateInvestment(uint256 shares, uint256 _buyOf) public view returns (uint256) {
+        
+        require(shares > 0, "Shares must be greater than zero");
+        uint256 amountInCents = (shares * marketInfo[address(this)].initialPrice[_buyOf]) / 100;
+        
+        return amountInCents;
+    }
+
+
+    
+
+//      // Function to resolve the market and determine the winning outcome
+//     function resolveMarket(uint256 winningOutcomeIndex) external onlyOwner {
+        
+//         require(state == MarketState.Open, "Market is not open");
+//         require(block.timestamp > endTime, "Market has not ended");
+//         require(winningOutcomeIndex < outcomes.length, "Invalid outcome index");
+
+//         // Update the state of the market to Resolved
+//         state = MarketState.Resolved;
+//         result = winningOutcomeIndex;
+
+//         // Emit the MarketResolved event
+//         emit MarketResolved(winningOutcomeIndex);
+//     }
+
+//     function _userShareAmount(address _user, uint256 outcomeIndex)public view returns (uint256){
+
+//         uint256 userSharePercentage = (userBalances[_user][outcomeIndex] *100) / outcomes[outcomeIndex].totalBets;
+
+//            return userSharePercentage;
+//     }
+
+//     function withdrawWinnings() external {
+        
+//         uint256 outcomeIndex = result ;
+        
+//         require(state == MarketState.Resolved, "Market is not resolved");
+//         require(outcomeIndex < outcomes.length, "Invalid outcome index");
+//         require(userBalances[msg.sender][outcomeIndex] > 0,"You are not a winner");
+         
+//         if (outcomes[0].totalBets == 0 || outcomes[1].totalBets == 0 ) {
+            
+//             uint256 userShare = userBalances[msg.sender][outcomeIndex];
+//             userBalances[msg.sender][outcomeIndex] = 0;
+
+//             // Transfer the user's winnings
+//             require(usdcToken.transfer(msg.sender, userShare), "Withdraw failed");
+
+//         }else {
+            
+//             uint256 abc;
+            
+//             if(0 == outcomeIndex){
+
+//                 admin = outcomes[1].totalBets * 10 / 100;
+//                 abc = (outcomes[1].totalBets - admin ) * _userShareAmount(msg.sender, outcomeIndex) / 100;
+
+//             }else if (1 == outcomeIndex){
+
+//                 admin = outcomes[0].totalBets * 10 / 100;
+//                 abc = (outcomes[0].totalBets - admin ) * _userShareAmount(msg.sender, outcomeIndex) / 100;
+//             }
+
+//             // Transfer the user's winnings
+//             require(usdcToken.transfer(msg.sender, abc+userBalances[msg.sender][outcomeIndex]), "Withdraw failed");
+        
+//         }    
+        
+//         // Reset the user's balance for the outcome to prevent reentrant attacks
+//         userBalances[msg.sender][outcomeIndex] = 0;
+        
+//         emit WithdrawWinner(outcomeIndex);
+//     }
+
+//     function getAdminAmount() external returns (uint256 adminAmount) {
+    
+//         uint256 outcomeIndex = result ;
+    
+//         require(state == MarketState.Resolved, "Market is not resolved");
+//         require(outcomeIndex < outcomes.length, "Invalid outcome index");
+
+//         // Calculate the admin amount based on the winning outcome
+//         if (outcomeIndex == 0) {
+           
+//             adminAmount = outcomes[1].totalBets * 10 / 100;
+
+//         } else if (outcomeIndex == 1) {
+//             adminAmount = outcomes[0].totalBets * 10 / 100;
+
+//         } else {
+//             adminAmount = 0; // Invalid outcome index
+//         }
+
+//         // Transfer the admin amount to the admin
+//         if (adminAmount > 0) {
+//             require(usdcToken.transfer(owner(), adminAmount), "Admin transfer failed");
+//         }
+    
+//     return adminAmount;
+    
+// }
+
+//     function RemainingTokens() external onlyOwner {
+        
+//         uint256 remainingBalance = usdcToken.balanceOf(address(this));
+        
+//         require(remainingBalance >0, "No balance in the market");
+        
+//         // Transfer the remaining tokens to the owner
+//         require(usdcToken.transfer(owner(), remainingBalance), "Transfer failed");
+       
+//         emit RemainingTransfer(owner(),remainingBalance );
+//     }
+
+//     function getTotalBetsCombined() external view returns (uint256) {
+        
+//         uint256 totalCombinedBets = 0;
+        
+//         for (uint256 i = 0; i < outcomes.length; i++) {
+//             totalCombinedBets = totalCombinedBets + (outcomes[i].totalBets);
+//         }
+        
+//         return totalCombinedBets;
+//     }
+
+//     function resultPercentage() external view returns (uint256 yesPercentage , uint256 noPercentage ) {
+       
+//         uint256 totalBets = outcomes[0].totalBets + outcomes[1].totalBets;  
+        
+//         if (totalBets == 0) {
+//             return (0, 0);
+//         }
+        
+//         yesPercentage = (outcomes[1].totalBets * 100) / totalBets;
+//         noPercentage = (outcomes[0].totalBets * 100) / totalBets;
+//     }
+
+//     // Function to get information about a specific outcome
+//     function getOutcomeInfo(uint256 index)external view returns (string memory description,uint256 totalBets,uint256 totalSharess){
+        
+//         require(index < outcomes.length, "Invalid outcome index");
+//         OutcomeInfo memory outcome = outcomes[index];
+        
+//         return (outcome.description, outcome.totalBets, outcome.totalSharess);
+//     }
+
+
 }
-
-
-// DeV_Fee_Wallet: 0x4B0897b0513fdC7C541B6d9D7E929C4e5364D2dB
-// maintance_wallet: 0x583031D1113aD414F02576BD6afaBfb302140225
-// usdc_Holder_address : 0xdD870fA1b7C4700F2BD7f44238821C26f7392148
