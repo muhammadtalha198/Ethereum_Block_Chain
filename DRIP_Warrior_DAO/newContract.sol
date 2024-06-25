@@ -38,13 +38,14 @@ contract Market is Ownable {
         uint256 saleAmount;
         uint256 noOfShares;
         address owner;
+        uint256 rewardAmount;
 
     }
 
     uint256 public totalUsers;
 
+    mapping(uint256 => address) public eachUser;
     mapping(address => MarketInfo) public marketInfo;
-    mapping(uint256 =>mapping(uint256 =>address)) public eachUser;
     mapping(address => mapping(address => UserInfo)) public userInfo;
     
 
@@ -87,7 +88,7 @@ contract Market is Ownable {
         userInfo[address(this)][msg.sender].noOfShares = _noOfShares;
         userInfo[address(this)][msg.sender].owner = msg.sender;
 
-        eachUser[totalUsers][_betOn] = msg.sender;
+        eachUser[totalUsers] = msg.sender;
         totalUsers++;
 
         if(_betOn == 0 ){
@@ -159,13 +160,20 @@ contract Market is Ownable {
         // emit BuySold(msg.sender, outcomeIndex, _noOfShares, returnAmount);
     }
 
-    function resolveMarket(uint256 winningIndex) external onlyOwner view {
+    function resolveMarket(uint256 winningIndex) external onlyOwner  {
         
         require(winningIndex == 0 || winningIndex == 1, " either bet yes or no.");
         require(block.timestamp >  marketInfo[address(this)].endTime, "Market has not ended");
+
+        for (uint256 i = 0; i < totalUsers; i++) {
+            
+            if( userInfo[address(this)][eachUser[i]].betOn == winningIndex) {
+
+                uint256 _rewardAmount = calculatePotentialReturn(userInfo[address(this)][msg.sender].noOfShares);
+                userInfo[address(this)][eachUser[i]].rewardAmount = _rewardAmount;
+            }
+        }
         
-
-
         // Emit the MarketResolved event
         // emit MarketResolved(winningOutcomeIndex);
     }
@@ -191,13 +199,9 @@ contract Market is Ownable {
     }
 
     // Function to calculate potential return
-    function calculatePotentialReturn(uint256 _amount,uint256 _buyOf) private view returns (uint256) {
-        
-        require(_amount > 0, "Amount must be greater than zero");
-       
-        uint256 shares = calculateShares(_amount, _buyOf);
-        uint256 potentialReturn = shares * 1e18 ;
-       
+    function calculatePotentialReturn(uint256 _shares) private view returns (uint256) {
+    
+        uint256 potentialReturn = _shares * 1e18 ;
         return potentialReturn;
     }
 
