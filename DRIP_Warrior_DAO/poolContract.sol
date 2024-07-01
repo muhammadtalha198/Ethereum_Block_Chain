@@ -42,6 +42,8 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
 
     uint256 public tdividentPayoutPercentage;
     uint256 public odividentPayoutPercentage;
+    uint256 public flowToTreasuryPercentage;
+    uint256 public maintainceFeePercentage;
 
     uint256 public noOfUsers;
 
@@ -90,6 +92,9 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
             wOPoolPercentage = 800;  // 8 %
             tdividentPayoutPercentage = 300; // 3 %
             odividentPayoutPercentage = 7500; // 75 %
+            
+            flowToTreasuryPercentage = 1500; // 15 %
+            maintainceFeePercentage = 1000; // 10 % 
 
             maintanceWallte = _maintanceWallte;
             usdcHolderWallet = _usdcHolderWallet;
@@ -210,8 +215,8 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
 
         uint256 remainFiftyOPool = calculatePercentage(ownerShipPoolAmount, 5000);
         uint256 dividentPayoutOPoolAmount = calculatePercentage(remainFiftyOPool, odividentPayoutPercentage);
-        uint256 fifteenPercenntToTPoolAmount = calculatePercentage(remainFiftyOPool, 1500);
-        uint256 tenPercenntToMaintenceAmount = calculatePercentage(remainFiftyOPool, 1000);
+        uint256 fifteenPercenntToTPoolAmount = calculatePercentage(remainFiftyOPool, flowToTreasuryPercentage);
+        uint256 tenPercenntToMaintenceAmount = calculatePercentage(remainFiftyOPool, maintainceFeePercentage);
         uint256 remainFiftyTPoolAmount = calculatePercentage(treasuryPoolAmount, 5000);
 
         treasuryPoolAmount = treasuryPoolAmount.add(fifteenPercenntToTPoolAmount);
@@ -264,7 +269,8 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
 
         emit PercentageChanged(msg.sender, dOPoolPercentage);
 
-    }function setlOPoolPercentage(uint256 _newPerccentage) external onlyOwner {
+    }
+    function setlOPoolPercentage(uint256 _newPerccentage) external onlyOwner {
         require(_newPerccentage != 0, "Wrong percentage");
         lOPoolPercentage = _newPerccentage;
 
@@ -285,8 +291,21 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
         emit PercentageChanged(msg.sender, devFeePercentage);
     }
 
-    
+    function setflowToTreasuryPercentage(uint256 _newPerccentage) external onlyOwner {
+        require(_newPerccentage != 0, "Wrong percentage");
+        flowToTreasuryPercentage = _newPerccentage;
 
+        emit PercentageChanged(msg.sender, flowToTreasuryPercentage);
+    }
+    
+    function setmaintainceFeePercentage(uint256 _newPerccentage) external onlyOwner {
+        require(_newPerccentage != 0, "Wrong percentage");
+        maintainceFeePercentage = _newPerccentage;
+
+        emit PercentageChanged(msg.sender, maintainceFeePercentage);
+    }
+
+    
     function setmaintanceWallte(address _newAddress) external onlyOwner {
        
         require(_newAddress != address(0), "Wrong Addres");
@@ -303,7 +322,6 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
         emit WalletCchanged(msg.sender, usdcHolderWallet);
 
     }
-
 
     function setdevFeeWallet(address _newAddress) external onlyOwner {
         
