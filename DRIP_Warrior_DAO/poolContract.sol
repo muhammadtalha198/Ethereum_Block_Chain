@@ -2,11 +2,11 @@
 // Compatible with OpenZeppelin Contracts ^5.0.0
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/math/SafeMathUpgradeable.sol";
+
 
 interface IBEP20 {        
     
@@ -17,9 +17,8 @@ interface IBEP20 {
 }
 
 
-contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
+contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     
-    using SafeMathUpgradeable for uint256;
     IBEP20 public usdcToken;
 
     address  public maintanceWallte;
@@ -79,7 +78,7 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
 
         ) initializer public {
             
-            __Pausable_init();
+            
             __Ownable_init(initialOwner);
             __UUPSUpgradeable_init();
 
@@ -152,7 +151,7 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
         bool success = usdcToken.transferFrom(msg.sender,devFeeWallet,devFee);
         require(success, "Transfer failed");
         
-        bool success1 = usdcToken.transferFrom(msg.sender,address(this),_amount.sub(devFee));
+        bool success1 = usdcToken.transferFrom(msg.sender,address(this),_amount - (devFee));
         require(success1, "Transfer failed");
 
         emit AddFunds(_amount,_projectNo);
@@ -167,13 +166,13 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
         uint256 ownerShipFee = calculatePercentage(_amount, _poolPercentage);
 
         uint256 tPoolPercentage = 10000;
-        tPoolPercentage = tPoolPercentage.sub(_devFeePercentage.add(_poolPercentage));
+        tPoolPercentage = tPoolPercentage - (_devFeePercentage + (_poolPercentage));
         
         uint256 treasuryFee = calculatePercentage(_amount, tPoolPercentage);
 
-        totalDevFee = totalDevFee.add(devFee);
-        ownerShipPoolAmount = ownerShipPoolAmount.add(ownerShipFee);
-        treasuryPoolAmount = treasuryPoolAmount.add(treasuryFee);
+        totalDevFee = totalDevFee + (devFee);
+        ownerShipPoolAmount = ownerShipPoolAmount + (ownerShipFee);
+        treasuryPoolAmount = treasuryPoolAmount + (treasuryFee);
 
         return devFee;
     }
@@ -188,7 +187,7 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
     
         for(uint256 i = 0; i < noOfUsers; i++){
 
-            uint256 eachSharePercentage = (userRegistered[totalUsers[i]].totalStakedAmount.mul(10000)).div(totalStakedAmount);
+            uint256 eachSharePercentage = (userRegistered[totalUsers[i]].totalStakedAmount * (10000)) / (totalStakedAmount);
             
             uint256 eachSendAmount = calculatePercentage(dividentPayoutOPoolAmount, eachSharePercentage);
             ownerShipPoolAmount -= eachSendAmount;
@@ -219,7 +218,7 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
 
         uint256 perPersonFromTPool = remainFiftyTPoolAmount/noOfUsers;
 
-        treasuryPoolAmount = treasuryPoolAmount.add(fifteenPercenntToTPoolAmount);
+        treasuryPoolAmount = treasuryPoolAmount + (fifteenPercenntToTPoolAmount);
        
         bool success1 = usdcToken.transfer(maintanceWallte, tenPercenntToMaintenceAmount);
         require(success1, "Transfer failed");
@@ -231,7 +230,7 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
         
         require(_totalStakeAmount !=0 , "_totalStakeAmount can not be zero");
         require(percentageNumber !=0 , "_totalStakeAmount can not be zero");
-        uint256 serviceFee = _totalStakeAmount.mul(percentageNumber).div(10000);
+        uint256 serviceFee = _totalStakeAmount * (percentageNumber) / (10000);
         
         return serviceFee;
     }
@@ -330,15 +329,6 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
         emit WalletCchanged(msg.sender, devFeeWallet);
 
     }
-    
-
-    function pause() public onlyOwner {
-        _pause();
-    }
-
-    function unpause() public onlyOwner {
-        _unpause();
-    }
 
     function _authorizeUpgrade(address newImplementation)
         internal
@@ -348,6 +338,6 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
 }
 
 
-// DeV_Fee_Wallet: 0x4B0897b0513fdC7C541B6d9D7E929C4e5364D2dB
-// maintance_wallet: 0x583031D1113aD414F02576BD6afaBfb302140225
-// usdc_Holder_address : 0xdD870fA1b7C4700F2BD7f44238821C26f7392148
+// DeV_Fee_Wallet: 0xcCc22A7fc54d184138dfD87B7aD24552cD4E0915
+// maintance_wallet: 0xCA6e763716eA3a3e425baD2954a65BBb411e5fBC
+// usdc_Holder_address : 0xbEc540D2840BF6c5b52FC98f61e760E6fb1B2659
