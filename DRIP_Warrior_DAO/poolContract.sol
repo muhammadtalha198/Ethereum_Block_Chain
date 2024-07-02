@@ -90,7 +90,7 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
             dOPoolPercentage = 1000; // 10 % 
             lOPoolPercentage = 5000; // 50 %
             wOPoolPercentage = 800;  // 8 %
-            tdividentPayoutPercentage = 300; // 3 %
+            tdividentPayoutPercentage = 5000; // 50 %
             odividentPayoutPercentage = 7500; // 75 %
             
             flowToTreasuryPercentage = 1500; // 15 %
@@ -182,7 +182,7 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
 
     function WeeklyTransfer() external  {
         
-        ( uint256 remainFiftyTPoolAmount,uint256 dividentPayoutOPoolAmount)  = perPoolCalculation();
+        ( uint256 remainFiftyTPoolAmount,uint256 dividentPayoutOPoolAmount, uint256 perPersonFromTPool)  = perPoolCalculation();
 
         uint256 maxlimit;
     
@@ -192,10 +192,8 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
             
             uint256 eachSendAmount = calculatePercentage(dividentPayoutOPoolAmount, eachSharePercentage);
             ownerShipPoolAmount -= eachSendAmount;
-           
-            uint256 perPersonFromTPool = calculatePercentage(userRegistered[totalUsers[i]].totalStakedAmount, tdividentPayoutPercentage);
-            
-            maxlimit += perPersonFromTPool;
+                       
+            maxlimit += eachSendAmount;
             treasuryPoolAmount -= perPersonFromTPool;
             
             uint256 totalSendAmount = eachSendAmount + perPersonFromTPool;
@@ -210,21 +208,23 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
 
     }
 
-    function perPoolCalculation() private returns(uint256, uint256){
+    function perPoolCalculation() private returns(uint256, uint256,uint256){
         
 
         uint256 remainFiftyOPool = calculatePercentage(ownerShipPoolAmount, 5000);
         uint256 dividentPayoutOPoolAmount = calculatePercentage(remainFiftyOPool, odividentPayoutPercentage);
         uint256 fifteenPercenntToTPoolAmount = calculatePercentage(remainFiftyOPool, flowToTreasuryPercentage);
         uint256 tenPercenntToMaintenceAmount = calculatePercentage(remainFiftyOPool, maintainceFeePercentage);
-        uint256 remainFiftyTPoolAmount = calculatePercentage(treasuryPoolAmount, 5000);
+        uint256 remainFiftyTPoolAmount = calculatePercentage(treasuryPoolAmount, tdividentPayoutPercentage);
+
+        uint256 perPersonFromTPool = remainFiftyTPoolAmount/noOfUsers;
 
         treasuryPoolAmount = treasuryPoolAmount.add(fifteenPercenntToTPoolAmount);
        
         bool success1 = usdcToken.transfer(maintanceWallte, tenPercenntToMaintenceAmount);
         require(success1, "Transfer failed");
 
-        return (remainFiftyTPoolAmount,dividentPayoutOPoolAmount);
+        return (remainFiftyTPoolAmount,dividentPayoutOPoolAmount,perPersonFromTPool);
     }
 
     function calculatePercentage(uint256 _totalStakeAmount,uint256 percentageNumber) private pure returns(uint256) {
@@ -246,7 +246,6 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
         emit Withdraw(msg.sender, _amount);
     }
 
-
     function settdividentPayoutPercentage(uint256 _newPerccentage) external onlyOwner {
         
         require(_newPerccentage != 0, "Wrong percentage");
@@ -258,9 +257,9 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
     
     function setodividentPayoutPercentage(uint256 _newPerccentage) external onlyOwner {
         require(_newPerccentage != 0, "Wrong percentage");
-        tdividentPayoutPercentage = _newPerccentage;
+        odividentPayoutPercentage = _newPerccentage;
 
-        emit PercentageChanged(msg.sender, tdividentPayoutPercentage);
+        emit PercentageChanged(msg.sender, odividentPayoutPercentage);
     }
 
     function setdOPoolPercentage(uint256 _newPerccentage) external onlyOwner {
@@ -297,7 +296,7 @@ contract PoolContract is Initializable, PausableUpgradeable, OwnableUpgradeable,
 
         emit PercentageChanged(msg.sender, flowToTreasuryPercentage);
     }
-    
+
     function setmaintainceFeePercentage(uint256 _newPerccentage) external onlyOwner {
         require(_newPerccentage != 0, "Wrong percentage");
         maintainceFeePercentage = _newPerccentage;
