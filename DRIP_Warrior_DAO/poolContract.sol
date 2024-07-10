@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Compatible with OpenZeppelin Contracts ^5.0.0
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.25;
 
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -29,10 +29,10 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     uint256 public totalDevFee;
 
 
-    uint256 public pOPoolPercentage;
-    uint256 public dOPoolPercentage;
-    uint256 public lOPoolPercentage;
-    uint256 public wOPoolPercentage;
+    uint256 public sSOPoolPercentage;
+    uint256 public dMOPoolPercentage;
+    uint256 public lWOPoolPercentage;
+    uint256 public wROPoolPercentage;
     
     
     uint256 public treasuryPoolAmount;
@@ -50,10 +50,13 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
         bool registered;
         uint256 receivedAmount;
+        uint256 receiveFromTreasury;
+        uint256 receiveFromOwneerShip;
         uint256 totalStakedAmount;
     }
 
     mapping(uint256 => address) public totalUsers;
+    mapping(address => bool) public alreadyAdded;
     mapping(address => UserRegistered) public userRegistered;
     
     event AddFunds(uint256 _amount, uint256 _projectNo);
@@ -85,14 +88,14 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
             usdcToken = IBEP20(_usdcAddress);
 
             devFeePercentage = 1500; // 15 %
-            pOPoolPercentage = 3400; // 34 %
-            dOPoolPercentage = 1000; // 10 % 
-            lOPoolPercentage = 5000; // 50 %
-            wOPoolPercentage = 800;  // 8 %
+            sSOPoolPercentage = 3400; // 34 %
+            dMOPoolPercentage = 1000; // 10 % 
+            lWOPoolPercentage = 5000; // 50 %
+            wROPoolPercentage = 800;  // 8 %
             tdividentPayoutPercentage = 5000; // 50 %
             odividentPayoutPercentage = 7500; // 75 %
             
-            flowToTreasuryPercentage = 1500; // 15 %
+            flowToTreasuryPercentage = 1500; // l
             maintainceFeePercentage = 1000; // 10 % 
 
             maintanceWallte = _maintanceWallte;
@@ -108,9 +111,13 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
         userRegistered[msg.sender].registered = true;
         userRegistered[msg.sender].totalStakedAmount += _amount;
-        totalUsers[noOfUsers] = msg.sender;
+       
+        if(!alreadyAdded[msg.sender]){
+            totalUsers[noOfUsers] = msg.sender;
+            noOfUsers++;
+        }
+
         totalStakedAmount += _amount;
-        noOfUsers++;
 
         bool success =usdcToken.transferFrom(msg.sender,usdcHolderWallet,_amount);
         require(success, "Transfer failed");
@@ -119,10 +126,10 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
     }
 
-    // plinkoFunds = 0;
-    // dripWarriorFunds = 1;
-    // liquidWarriorFunds = 2;
-    // warriorRushFunds = 4;
+    // sSOPoolPercentage = 0;
+    // dMOPoolPercentage = 1;
+    // lWOPoolPercentage = 2;
+    // wROPoolPercentage = 3;
 
     function addFunds(uint256 _amount, uint256 _projectNo)   external {
 
@@ -132,19 +139,19 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
         if(_projectNo == 0){
             
-             devFee = calculateFees(_amount, devFeePercentage, pOPoolPercentage);
+             devFee = calculateFees(_amount, devFeePercentage, sSOPoolPercentage);
         } 
         else if(_projectNo == 1) {
             
-             devFee = calculateFees(_amount, devFeePercentage, dOPoolPercentage); 
+             devFee = calculateFees(_amount, devFeePercentage, dMOPoolPercentage); 
         }
         else if(_projectNo == 2){
 
-             devFee = calculateFees(_amount, devFeePercentage, lOPoolPercentage);
+             devFee = calculateFees(_amount, devFeePercentage, lWOPoolPercentage);
         }
         else {
 
-             devFee = calculateFees(_amount, devFeePercentage, wOPoolPercentage);
+             devFee = calculateFees(_amount, devFeePercentage, wROPoolPercentage);
         }
 
 
@@ -184,7 +191,7 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         ( uint256 remainFiftyTPoolAmount,uint256 dividentPayoutOPoolAmount, uint256 perPersonFromTPool)  = perPoolCalculation();
 
         uint256 maxlimit;
-    
+
         for(uint256 i = 0; i < noOfUsers; i++){
 
             uint256 eachSharePercentage = (userRegistered[totalUsers[i]].totalStakedAmount * (10000)) / (totalStakedAmount);
@@ -194,6 +201,9 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
                        
             maxlimit += eachSendAmount;
             treasuryPoolAmount -= perPersonFromTPool;
+
+            userRegistered[totalUsers[i]].receiveFromTreasury = perPersonFromTPool;
+            userRegistered[totalUsers[i]].receiveFromOwneerShip = eachSendAmount;
             
             uint256 totalSendAmount = eachSendAmount + perPersonFromTPool;
             userRegistered[totalUsers[i]].receivedAmount += totalSendAmount;
@@ -211,13 +221,16 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         
 
         uint256 remainFiftyOPool = calculatePercentage(ownerShipPoolAmount, 5000);
+
         uint256 dividentPayoutOPoolAmount = calculatePercentage(remainFiftyOPool, odividentPayoutPercentage);
         uint256 fifteenPercenntToTPoolAmount = calculatePercentage(remainFiftyOPool, flowToTreasuryPercentage);
         uint256 tenPercenntToMaintenceAmount = calculatePercentage(remainFiftyOPool, maintainceFeePercentage);
         uint256 remainFiftyTPoolAmount = calculatePercentage(treasuryPoolAmount, tdividentPayoutPercentage);
 
+        require(noOfUsers > 0, "no users!");
+        
         uint256 perPersonFromTPool = remainFiftyTPoolAmount/noOfUsers;
-
+        
         treasuryPoolAmount = treasuryPoolAmount + (fifteenPercenntToTPoolAmount);
        
         bool success1 = usdcToken.transfer(maintanceWallte, tenPercenntToMaintenceAmount);
@@ -260,26 +273,33 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
         emit PercentageChanged(msg.sender, odividentPayoutPercentage);
     }
+    
+    function setpOPoolPercentage(uint256 _newPerccentage) external onlyOwner {
+        require(_newPerccentage != 0, "Wrong percentage");
+        sSOPoolPercentage = _newPerccentage;
+
+        emit PercentageChanged(msg.sender, sSOPoolPercentage);
+    }
 
     function setdOPoolPercentage(uint256 _newPerccentage) external onlyOwner {
         require(_newPerccentage != 0, "Wrong percentage");
-        dOPoolPercentage = _newPerccentage;
+        dMOPoolPercentage = _newPerccentage;
 
-        emit PercentageChanged(msg.sender, dOPoolPercentage);
+        emit PercentageChanged(msg.sender, dMOPoolPercentage);
 
     }
     function setlOPoolPercentage(uint256 _newPerccentage) external onlyOwner {
         require(_newPerccentage != 0, "Wrong percentage");
-        lOPoolPercentage = _newPerccentage;
+        lWOPoolPercentage = _newPerccentage;
 
-        emit PercentageChanged(msg.sender, lOPoolPercentage);
+        emit PercentageChanged(msg.sender, lWOPoolPercentage);
 
     }
     function setwOPoolPercentage(uint256 _newPerccentage) external onlyOwner {
         require(_newPerccentage != 0, "Wrong percentage");
-        wOPoolPercentage = _newPerccentage;
+        wROPoolPercentage = _newPerccentage;
 
-        emit PercentageChanged(msg.sender, wOPoolPercentage);
+        emit PercentageChanged(msg.sender, wROPoolPercentage);
 
     }
     function setdevFeePercentage(uint256 _newPerccentage) external onlyOwner {
@@ -338,6 +358,6 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 }
 
 
-// DeV_Fee_Wallet: 0xcCc22A7fc54d184138dfD87B7aD24552cD4E0915
 // maintance_wallet: 0xCA6e763716eA3a3e425baD2954a65BBb411e5fBC
 // usdc_Holder_address : 0xbEc540D2840BF6c5b52FC98f61e760E6fb1B2659
+// DeV_Fee_Wallet: 0xcCc22A7fc54d184138dfD87B7aD24552cD4E0915
