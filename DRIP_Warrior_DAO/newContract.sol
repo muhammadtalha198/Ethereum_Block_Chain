@@ -257,34 +257,13 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         emit PercentageChanged(msg.sender, odividentPayoutPercentage);
     }
     
-    // function setpOPoolPercentage(uint256 _newPerccentage) external onlyOwner {
-    //     require(_newPerccentage != 0, "Wrong percentage");
-    //     sSOPoolPercentage = _newPerccentage;
+    function setTeasueryPercentages(uint256 _projectId,uint256 _newPerccentage) external onlyOwner {
+        require(_newPerccentage != 0, "Wrong percentage");
+        tPPercentages[_projectId] = _newPerccentage;
 
-    //     emit PercentageChanged(msg.sender, sSOPoolPercentage);
-    // }
+        emit PercentageChanged(msg.sender, tPPercentages[_projectId]);
+    }
 
-    // function setdOPoolPercentage(uint256 _newPerccentage) external onlyOwner {
-    //     require(_newPerccentage != 0, "Wrong percentage");
-    //     dMOPoolPercentage = _newPerccentage;
-
-    //     emit PercentageChanged(msg.sender, dMOPoolPercentage);
-
-    // }
-    // function setlOPoolPercentage(uint256 _newPerccentage) external onlyOwner {
-    //     require(_newPerccentage != 0, "Wrong percentage");
-    //     lWOPoolPercentage = _newPerccentage;
-
-    //     emit PercentageChanged(msg.sender, lWOPoolPercentage);
-
-    // }
-    // function setwOPoolPercentage(uint256 _newPerccentage) external onlyOwner {
-    //     require(_newPerccentage != 0, "Wrong percentage");
-    //     wROPoolPercentage = _newPerccentage;
-
-    //     emit PercentageChanged(msg.sender, wROPoolPercentage);
-
-    // }
 
     function setflowToTreasuryPercentage(uint256 _newPerccentage) external onlyOwner {
         require(_newPerccentage != 0, "Wrong percentage");
