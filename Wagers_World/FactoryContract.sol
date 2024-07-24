@@ -1,97 +1,88 @@
 // SPDX-License-Identifier: MIT
 // Compatible with OpenZeppelin Contracts ^5.0.0
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.26;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract FactoryMacketContract is Ownable {
+import "./Market.sol";
 
-    struct MarketInfo {
-        address marketAddress;
-        string eventDescription;
-        uint256 endTime;
+contract FactoryMacketContract {
+
+    address usdcToken;
+    address private _admin;
+    Market[] public markets;
+    address[] public marketAddresses;
+
+    mapping (address => bool) public marketCreated;
+
+    event MarketCreated(address indexed marketAddress);
+    error OwnableUnauthorizedAccount(address account);
+    error OwnableInvalidOwner(address owner);
+
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
+
+    constructor(address initialOwner, address _usdccToken) {
+        usdcToken = _usdccToken;
+         if (initialOwner == address(0)) {
+            revert OwnableInvalidOwner(address(0));
+        }
+        _transferOwnership(initialOwner);
     }
-
-    MarketInfo[] public markets;
-
-    event MarketCreated(address indexed marketAddress, string eventDescription);
-
-
-    constructor(address initialOwner) Ownable(initialOwner) {}
 
 
     // Function to create a new prediction market
-    function createMarket(string memory eventDescription, uint256 endTime) external  {
+    function createMarket( uint256 endTime) external  {
         
         require(block.timestamp < endTime, "End time must be in the future");
 
-        address newMarketAddress = address(new Market(eventDescription, endTime , msg.sender));
-        markets.push(MarketInfo(newMarketAddress, eventDescription, endTime));
+        Market newMarket = new Market(msg.sender,usdcToken,endTime);
+        address marketAddress = address(newMarket);
 
-        emit MarketCreated(newMarketAddress, eventDescription);
+        markets.push(newMarket);
+        marketAddresses.push(marketAddress);
+        marketCreated[marketAddress] = true;
+
+
+        emit MarketCreated(marketAddress);
+
     }
-
-    // Function to get information about a specific market
-    function getMarketInfo(uint256 index) external view returns (address, string memory, uint256) {
-        
-        require(index < markets.length, "Invalid index");
-        
-        MarketInfo memory market = markets[index];
-        return (market.marketAddress, market.eventDescription, market.endTime);
-    }
-
-    // Function to get the total number of created markets
+    
+ 
     function getNumberOfMarkets() external view returns (uint256) {
         return markets.length;
     }
-
-}
-// SPDX-License-Identifier: MIT
-// Compatible with OpenZeppelin Contracts ^5.0.0
-pragma solidity ^0.8.20;
-
-import "@openzeppelin/contracts/access/Ownable.sol";
-
-contract FactoryMacketContract is Ownable {
-
-    struct MarketInfo {
-        address marketAddress;
-        string eventDescription;
-        uint256 endTime;
+    
+    
+    modifier onlyAdmin() {
+        _checkAdmin();
+        _;
     }
 
-    MarketInfo[] public markets;
-
-    event MarketCreated(address indexed marketAddress, string eventDescription);
-
-
-    constructor(address initialOwner) Ownable(initialOwner) {}
-
-
-    // Function to create a new prediction market
-    function createMarket(string memory eventDescription, uint256 endTime) external  {
-        
-        require(block.timestamp < endTime, "End time must be in the future");
-
-        address newMarketAddress = address(new Market(eventDescription, endTime , msg.sender));
-        markets.push(MarketInfo(newMarketAddress, eventDescription, endTime));
-
-        emit MarketCreated(newMarketAddress, eventDescription);
+    function admin() public view virtual returns (address) {
+        return _admin;
     }
 
-    // Function to get information about a specific market
-    function getMarketInfo(uint256 index) external view returns (address, string memory, uint256) {
-        
-        require(index < markets.length, "Invalid index");
-        
-        MarketInfo memory market = markets[index];
-        return (market.marketAddress, market.eventDescription, market.endTime);
+   
+    function _checkAdmin() internal view virtual {
+        if (admin() != msg.sender) {
+            revert OwnableUnauthorizedAccount(msg.sender);
+        }
     }
 
-    // Function to get the total number of created markets
-    function getNumberOfMarkets() external view returns (uint256) {
-        return markets.length;
+
+
+     function transferOwnership(address newOwner) public  {
+        if (newOwner == address(0)) {
+            revert OwnableInvalidOwner(address(0));
+        }
+        _transferOwnership(newOwner);
+    }
+
+    
+    function _transferOwnership(address newOwner) internal  {
+        address oldOwner = _admin;
+        _admin = newOwner;
+        emit OwnershipTransferred(oldOwner, newOwner);
     }
 
 }
-
