@@ -98,6 +98,7 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         tPPercentages[totalProjects] = _tPPercentage;
         totalProjects++;
 
+
         emit AddProject((totalProjects--), (10000 - _tPPercentage), _tPPercentage);
     }
 
@@ -106,6 +107,9 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         require(_amount != 0, "wrong value!");
 
         ownerShipPoolAmount += _amount;
+        
+        bool success1 = usdcToken.transferFrom(msg.sender,address(this),_amount );
+        require(success1, "Transfer failed");
 
         emit AddOwnership(ownerShipPoolAmount);
     }
@@ -115,6 +119,9 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         require(_amount != 0, "wrong value!");
 
         treasuryPoolAmount += _amount;
+
+        bool success1 = usdcToken.transferFrom(msg.sender,address(this),_amount );
+        require(success1, "Transfer failed");
 
         emit AddTreasuery(treasuryPoolAmount);
     }
