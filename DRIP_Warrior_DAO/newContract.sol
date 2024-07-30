@@ -1,11 +1,13 @@
+
+
 // SPDX-License-Identifier: MIT
 // Compatible with OpenZeppelin Contracts ^5.0.0
 pragma solidity ^0.8.25;
 
 
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+
 
 
 interface IBEP20 {        
@@ -17,7 +19,7 @@ interface IBEP20 {
 }
 
 
-contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
+contract PoolContract is Initializable, UUPSUpgradeable {
     
     IBEP20 public usdcToken;
     
@@ -31,10 +33,14 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     uint256 public maintainceFeePercentage;
 
     uint256 public noOfUsers;
+    address[] private _owners;
+
+    address public multisigAddress;
 
     struct UserRegistered{
 
         uint256 receivedAmount;
+        uint256 withdrawAmount;
         uint256 receiveFromTreasury;
         uint256 receiveFromOwneerShip;
         uint256 totalStakedAmount;
@@ -48,9 +54,11 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     mapping(address => bool) public alreadyAdded;
     mapping(address => UserRegistered) public userRegistered;
     
+    event OwnershipAdded(address indexed newOwner);
     event AddTreasuery(uint256 _treasuryPoolAmount);
     event AddOwnership(uint256 _ownerShipPoolAmount);
     event AddFunds(uint256 _amount, uint256 _projectNo);
+    event OwnershipRemoved(address indexed removedOwner);
     event Withdraw (address recipient, uint256 usdcAmount);
     event WalletCchanged(address _owner, address _newAddress);
     event PercentageChanged(address _owner, uint256 _newPercentage);
@@ -64,14 +72,13 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         _disableInitializers();
     }
 
-    function initialize(
-        address initialOwner, 
-        address _usdcAddress
+    function initialize( 
+        address _usdcAddress,
+        address _multisigAddress,
+        address[] memory initialOwners
 
         ) initializer public {
             
-            
-            __Ownable_init(initialOwner);
             __UUPSUpgradeable_init();
 
             usdcToken = IBEP20(_usdcAddress);
@@ -87,6 +94,16 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
             maintainceFeePercentage = 1000; // 10 % 
 
             totalProjects = 4;
+            multisigAddress = _multisigAddress;
+
+            require(initialOwners.length > 0, "Initial owners list must not be empty");
+
+            for (uint256 i = 0; i < initialOwners.length; i++) {
+                require(initialOwners[i] != address(0), "Invalid initial owner address");
+                _owners.push(initialOwners[i]);
+                
+                emit OwnershipAdded(initialOwners[i]);
+            }
 
     }
 
@@ -98,7 +115,6 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         tPPercentages[totalProjects] = _tPPercentage;
         totalProjects++;
 
-
         emit AddProject((totalProjects--), (10000 - _tPPercentage), _tPPercentage);
     }
 
@@ -107,9 +123,6 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         require(_amount != 0, "wrong value!");
 
         ownerShipPoolAmount += _amount;
-        
-        bool success1 = usdcToken.transferFrom(msg.sender,address(this),_amount );
-        require(success1, "Transfer failed");
 
         emit AddOwnership(ownerShipPoolAmount);
     }
@@ -119,9 +132,6 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         require(_amount != 0, "wrong value!");
 
         treasuryPoolAmount += _amount;
-
-        bool success1 = usdcToken.transferFrom(msg.sender,address(this),_amount );
-        require(success1, "Transfer failed");
 
         emit AddTreasuery(treasuryPoolAmount);
     }
@@ -133,19 +143,20 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         userRegistered[msg.sender].totalStakedAmount += _amount;
        
         if(!alreadyAdded[msg.sender]){
+            
             totalUsers[noOfUsers] = msg.sender;
+            alreadyAdded[msg.sender] = true;
             noOfUsers++;
         }
 
         totalStakedAmount += _amount;
 
-        bool success =usdcToken.transferFrom(msg.sender,owner(),_amount);
+        bool success =usdcToken.transferFrom(msg.sender,multisigAddress,_amount);
         require(success, "Transfer failed");
 
-        emit StakeTokens(msg.sender,owner(), _amount);
+        emit StakeTokens(msg.sender,multisigAddress, _amount);
 
     }
-
 
 
     function addFunds(uint256 _amount, uint256 _projectNo)   external {
@@ -160,7 +171,6 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
         emit AddFunds(_amount,_projectNo);
         
-
     }
 
 
@@ -178,7 +188,7 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
     function WeeklyTransfer() external  {
         
-        ( uint256 remainFiftyTPoolAmount,uint256 dividentPayoutOPoolAmount, uint256 perPersonFromTPool)  = perPoolCalculation();
+        ( uint256 remainFiftyOPool,uint256 dividentPayoutOPoolAmount, uint256 perPersonFromTPool)  = perPoolCalculation();
 
         uint256 maxlimit;
 
@@ -198,7 +208,7 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
             uint256 totalSendAmount = eachSendAmount + perPersonFromTPool;
             userRegistered[totalUsers[i]].receivedAmount += totalSendAmount;
 
-            require(maxlimit < remainFiftyTPoolAmount, "Amount is greater then 50%");
+            require(maxlimit <= remainFiftyOPool, "Amount is greater then 50%");
             
             bool success = usdcToken.transfer(totalUsers[i], totalSendAmount);
             require(success, "Transfer failed");
@@ -223,10 +233,10 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         
         treasuryPoolAmount = treasuryPoolAmount + (fifteenPercenntToTPoolAmount);
        
-        bool success1 = usdcToken.transfer(owner(), tenPercenntToMaintenceAmount);
+        bool success1 = usdcToken.transfer(multisigAddress, tenPercenntToMaintenceAmount);
         require(success1, "Transfer failed");
 
-        return (remainFiftyTPoolAmount,dividentPayoutOPoolAmount,perPersonFromTPool);
+        return (remainFiftyOPool,dividentPayoutOPoolAmount,perPersonFromTPool);
     }
 
     function calculatePercentage(uint256 _totalStakeAmount,uint256 percentageNumber) private pure returns(uint256) {
@@ -237,6 +247,16 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         
         return serviceFee;
     }
+    function userWithdrawAmoount(uint256 _amount) external {
+        
+        require(_amount != 0,"invalid _amount!");
+       require(); 
+       
+        bool success = usdcToken.transfer(msg.sender,_amount);
+        require(success, "Transfer failed");
+
+        emit Withdraw(msg.sender, _amount);
+    }
 
     function WithdrawAmount(uint256 _amount) external onlyOwner {
         
@@ -246,6 +266,13 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         require(success, "Transfer failed");
 
         emit Withdraw(msg.sender, _amount);
+    }
+    
+    function setTeasueryPercentages(uint256 _projectId,uint256 _newPerccentage) external onlyOwner {
+        require(_newPerccentage != 0, "Wrong percentage");
+        tPPercentages[_projectId] = _newPerccentage;
+
+        emit PercentageChanged(msg.sender, tPPercentages[_projectId]);
     }
 
     function settdividentPayoutPercentage(uint256 _newPerccentage) external onlyOwner {
@@ -264,13 +291,6 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         emit PercentageChanged(msg.sender, odividentPayoutPercentage);
     }
     
-    function setTeasueryPercentages(uint256 _projectId,uint256 _newPerccentage) external onlyOwner {
-        require(_newPerccentage != 0, "Wrong percentage");
-        tPPercentages[_projectId] = _newPerccentage;
-
-        emit PercentageChanged(msg.sender, tPPercentages[_projectId]);
-    }
-
 
     function setflowToTreasuryPercentage(uint256 _newPerccentage) external onlyOwner {
         require(_newPerccentage != 0, "Wrong percentage");
@@ -285,8 +305,49 @@ contract PoolContract is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
         emit PercentageChanged(msg.sender, maintainceFeePercentage);
     }
+    
+    function removveSomething() external onlyOwner() {
+        noOfUsers --;
+    }
 
+     modifier onlyOwner() {
+        require(isOwner(msg.sender), "Ownable: caller is not an owner");
+        _;
+    }
 
+    function isOwner(address account) internal view returns (bool) {
+        for (uint256 i = 0; i < _owners.length; i++) {
+            if (_owners[i] == account) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function owners() public view returns (address[] memory) {
+        return _owners;
+    }
+
+    function addOwnership(address newOwner) public onlyOwner {
+        require(newOwner != address(0), "Invalid owner address");
+        require(!isOwner(newOwner), "Owner already exists");
+
+        _owners.push(newOwner);
+        emit OwnershipAdded(newOwner);
+    }
+
+    function removeOwnership(address ownerToRemove) public onlyOwner {
+        require(isOwner(ownerToRemove), "Owner does not exist");
+
+        for (uint256 i = 0; i < _owners.length; i++) {
+            if (_owners[i] == ownerToRemove) {
+                _owners[i] = _owners[_owners.length - 1];
+                _owners.pop();
+                emit OwnershipRemoved(ownerToRemove);
+                break;
+            }
+        }
+    }
 
     function _authorizeUpgrade(address newImplementation)
         internal
