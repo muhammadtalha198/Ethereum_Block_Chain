@@ -124,6 +124,9 @@ contract PoolContract is Initializable, UUPSUpgradeable {
 
         ownerShipPoolAmount += _amount;
 
+        bool success1 = usdcToken.transferFrom(msg.sender,address(this),_amount );
+        require(success1, "Transfer failed");
+
         emit AddOwnership(ownerShipPoolAmount);
     }
     
@@ -132,6 +135,9 @@ contract PoolContract is Initializable, UUPSUpgradeable {
         require(_amount != 0, "wrong value!");
 
         treasuryPoolAmount += _amount;
+
+        bool success1 = usdcToken.transferFrom(msg.sender,address(this),_amount );
+        require(success1, "Transfer failed");
 
         emit AddTreasuery(treasuryPoolAmount);
     }
@@ -155,6 +161,21 @@ contract PoolContract is Initializable, UUPSUpgradeable {
         require(success, "Transfer failed");
 
         emit StakeTokens(msg.sender,multisigAddress, _amount);
+
+    }
+
+    function reStakeTokens(uint256 _amount) external  {
+        
+        require(_amount != 0,"invalid _amount!");
+        require(_amount <= userRegistered[msg.sender].receivedAmount,"invalid _amount!");
+
+        userRegistered[msg.sender].receivedAmount -= _amount;
+        userRegistered[msg.sender].totalStakedAmount += _amount;
+        
+        ownerShipPoolAmount += _amount;
+        totalStakedAmount += _amount;
+
+        emit StakeTokens(msg.sender,address(this), _amount);
 
     }
 
@@ -210,8 +231,8 @@ contract PoolContract is Initializable, UUPSUpgradeable {
 
             require(maxlimit <= remainFiftyOPool, "Amount is greater then 50%");
             
-            bool success = usdcToken.transfer(totalUsers[i], totalSendAmount);
-            require(success, "Transfer failed");
+            // bool success = usdcToken.transfer(totalUsers[i], totalSendAmount);
+            // require(success, "Transfer failed");
 
         }
 
@@ -247,10 +268,14 @@ contract PoolContract is Initializable, UUPSUpgradeable {
         
         return serviceFee;
     }
+    
     function userWithdrawAmoount(uint256 _amount) external {
         
         require(_amount != 0,"invalid _amount!");
-       require(); 
+        require(_amount <= userRegistered[msg.sender].receivedAmount, "invalid _amount!");
+
+        userRegistered[msg.sender].receivedAmount -= _amount;
+        userRegistered[msg.sender].withdrawAmount += _amount;
        
         bool success = usdcToken.transfer(msg.sender,_amount);
         require(success, "Transfer failed");
