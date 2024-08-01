@@ -252,8 +252,9 @@ contract PoolContract is Initializable, UUPSUpgradeable {
         
         uint256 perPersonFromTPool = remainFiftyTPoolAmount/noOfUsers;
         
-        treasuryPoolAmount = treasuryPoolAmount + (fifteenPercenntToTPoolAmount);
-       
+        ownerShipPoolAmount -= (fifteenPercenntToTPoolAmount + tenPercenntToMaintenceAmount);
+        treasuryPoolAmount += fifteenPercenntToTPoolAmount;
+
         bool success1 = usdcToken.transfer(multisigAddress, tenPercenntToMaintenceAmount);
         require(success1, "Transfer failed");
 
@@ -331,9 +332,7 @@ contract PoolContract is Initializable, UUPSUpgradeable {
         emit PercentageChanged(msg.sender, maintainceFeePercentage);
     }
     
-    function removveSomething() external onlyOwner() {
-        noOfUsers --;
-    }
+
 
      modifier onlyOwner() {
         require(isOwner(msg.sender), "Ownable: caller is not an owner");
