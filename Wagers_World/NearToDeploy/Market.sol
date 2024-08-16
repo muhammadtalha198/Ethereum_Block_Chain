@@ -34,11 +34,10 @@ contract Market is Ownable {
     struct SellInfo{
         bool list;
         bool sold;
-        bool onNo;
-        bool onYes;
         address owner;
         uint256 price;
         uint256 amount;
+        mapping(uint256 => bool) sellOn;
     }
 
     uint256 public totalUsers;
@@ -95,7 +94,6 @@ contract Market is Ownable {
         }
 
         marketInfo[address(this)].totalAmount += _amount;
-        
         userInfo[msg.sender].betOn[_betOn] = true;
 
 
@@ -137,24 +135,24 @@ contract Market is Ownable {
 
     function sellShare(uint256 _amount, uint256 _price, uint256 _sellOf) external {
         
-        require(userInfo[msg.sender].bet, "wrong user.");
+        require(userInfo[msg.sender].betOn[_sellOf], "wrong user.");
         require(_price > 0, "price must be greater than 0");
         require(_amount > 0, "amount must be greater than 0");
+        require(_sellOf == 0 || _sellOf == 1, "you either list yes or no.");
         require(block.timestamp < marketInfo[address(this)].endTime, "Market has ended");
         
         userInfo[msg.sender].listNo++;
 
         sellInfo[msg.sender][userInfo[msg.sender].listNo].list = true;
-        sellInfo[msg.sender][userInfo[msg.sender].listNo].price = _price;
+        sellInfo[msg.sender][userInfo[msg.sender].listNo].price = _price; 
 
         if(_sellOf == 0){
-            sellInfo[msg.sender][userInfo[msg.sender].listNo].onNO = true;
+            sellInfo[msg.sender][userInfo[msg.sender].listNo].sellOn[_sellOf] = true;
         } else {
             sellInfo[msg.sender][userInfo[msg.sender].listNo].onYes = true;
         }
-        
     
-        emit SellShare(msg.sender, userInfo[msg.sender].listNo - 1, _price);
+        emit SellShare(msg.sender, userInfo[msg.sender].listNo, _price);
     }
 
     function buyShare(uint256 _listNo, address _owner) external {
