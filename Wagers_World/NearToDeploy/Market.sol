@@ -23,7 +23,6 @@ contract Market is Ownable {
 
     struct UserInfo{
 
-        address owner; 
         uint256 listNo;
         uint256 noBetAmount;
         uint256 rewardAmount;
@@ -145,12 +144,9 @@ contract Market is Ownable {
 
         sellInfo[msg.sender][userInfo[msg.sender].listNo].list = true;
         sellInfo[msg.sender][userInfo[msg.sender].listNo].price = _price; 
-
-        if(_sellOf == 0){
-            sellInfo[msg.sender][userInfo[msg.sender].listNo].sellOn[_sellOf] = true;
-        } else {
-            sellInfo[msg.sender][userInfo[msg.sender].listNo].onYes = true;
-        }
+        sellInfo[msg.sender][userInfo[msg.sender].listNo].owner = msg.sender; 
+        sellInfo[msg.sender][userInfo[msg.sender].listNo].sellOn[_sellOf] = true;
+        
     
         emit SellShare(msg.sender, userInfo[msg.sender].listNo, _price);
     }
@@ -158,6 +154,10 @@ contract Market is Ownable {
     function buyShare(uint256 _listNo, address _owner) external {
         
         require(sellInfo[_owner][_listNo].list, "Not listeed!");
+        require(!sellInfo[_owner][_listNo].sold, "allready Sold.");
+        require(sellInfo[_owner][_listNo].owner == _owner, "wrong Owner.");
+        require(block.timestamp < marketInfo[address(this)].endTime, "Market has ended");
+
 
 
         // userInfo[msg.sender].buyed = true;
