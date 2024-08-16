@@ -22,24 +22,23 @@ contract Market is Ownable {
     }
 
     struct UserInfo{
-        
-        uint256 noOfBets;
+
+        address owner; 
+        uint256 listNo;
         uint256 noBetAmount;
-        uint256 yesBetAmount;
         uint256 rewardAmount;
+        uint256 yesBetAmount;
+        mapping(uint256 => bool) betOn;
     }
 
-    struct BetInfo{
-        bool bet;
-        bool buyed;
-        bool setForSale;
-        address owner; 
-        uint256 betOn;
-        uint256 onPrice;
-        uint256 betAmount;
-        uint256 buyAmount;
-        uint256 saleAmount;
-        uint256 noOfShares; 
+    struct SellInfo{
+        bool list;
+        bool sold;
+        bool onNo;
+        bool onYes;
+        address owner;
+        uint256 price;
+        uint256 amount;
     }
 
     uint256 public totalUsers;
@@ -47,7 +46,7 @@ contract Market is Ownable {
     mapping(uint256 => address) public eachUser;
     mapping(address => UserInfo) public userInfo;
     mapping(address => MarketInfo) public marketInfo;
-    mapping(address => mapping(uint256 => BetInfo)) public betInfo;
+    mapping(address => mapping(uint256 => SellInfo)) public sellInfo;
     
 
    
@@ -55,7 +54,7 @@ contract Market is Ownable {
     event MarketResolved(uint256 indexed winningOutcomeIndex);
     event RemainingTransfer(address owner,uint256 remainingBalance);
     event Bet(address indexed user,uint256 indexed _amount,uint256 _betOn);
-    event SellShare(address indexed user, uint256 noOfShares, uint256 ofBet, uint256 onPrice);
+    event SellShare(address indexed user, uint256 listNo,  uint256 onPrice);
     event BuyShare(address buyer, address seller, uint256 _noOfShares, uint256 ofBet, uint256 onPrice);
 
 
@@ -70,9 +69,6 @@ contract Market is Ownable {
             marketInfo[address(this)].initialPrice[0] = 500000000000000000;
             marketInfo[address(this)].initialPrice[1] = 500000000000000000;
             usdcToken = ERC20(_usdcToken);
-            
-
-
     }
 
     function bet(uint256 _amount, uint256 _betOn) external {
@@ -82,49 +78,25 @@ contract Market is Ownable {
         require(block.timestamp < marketInfo[address(this)].endTime, "Market is closed.");
         
 
-        if(userInfo[msg.sender].noOfBets != 0){     
-            
+        if(!userInfo[msg.sender].betOn[_betOn] && !userInfo[msg.sender].betOn[_betOn]){     
             eachUser[totalUsers] = msg.sender;
             totalUsers++;
         }
-        
-        uint256 _noOfShares;
-
 
         if(_betOn == 0 ){
 
             marketInfo[address(this)].totalBetsOnNo++;
             userInfo[msg.sender].noBetAmount += _amount;
-            // _noOfShares = calculateShares(userInfo[msg.sender].noBetAmount, _betOn);
 
         }else {
 
             marketInfo[address(this)].totalBetsOnYes++;  
             userInfo[msg.sender].yesBetAmount += _amount;
-            // _noOfShares = calculateShares(userInfo[msg.sender].yesBetAmount, _betOn);
         }
 
-
         marketInfo[address(this)].totalAmount += _amount;
-
         
-        
-        betInfo[msg.sender][userInfo[msg.sender].noOfBets].bet = true;
-        betInfo[msg.sender][userInfo[msg.sender].noOfBets].betOn = _betOn;
-        betInfo[msg.sender][userInfo[msg.sender].noOfBets].owner = msg.sender;
-        betInfo[msg.sender][userInfo[msg.sender].noOfBets].betAmount = _amount;
-        betInfo[msg.sender][userInfo[msg.sender].noOfBets].betOn = _betOn;
-        betInfo[msg.sender][userInfo[msg.sender].noOfBets].betOn = _betOn;
-        
-        if 
-        
-
-        console.log("_noOfShares: ", _noOfShares);
-
-        userInfo[msg.sender].noOfShares = _noOfShares;
-        userInfo[msg.sender].owner = msg.sender;
-
-        userInfo[msg.sender].noOfBets++;
+        userInfo[msg.sender].betOn[_betOn] = true;
 
 
         (marketInfo[address(this)].initialPrice[0],marketInfo[address(this)].initialPrice[1]) = 
@@ -136,23 +108,25 @@ contract Market is Ownable {
         bool success = usdcToken.transferFrom(msg.sender, address(this), _amount);
         require(success, "Transfer failed");
 
-         emit Bet(msg.sender, _amount, _betOn);
+        emit Bet(msg.sender, _amount, _betOn);
     }
 
 
-    function PriceCalculation(uint256 NoUsers, uint256 yesUsers) public view returns(uint256, uint256){
+    function PriceCalculation(uint256 totalBetsOnNo, uint256 totalBetsOnYes) public view returns(uint256, uint256){
         
          uint256 originalNoPrice = marketInfo[address(this)].initialPrice[0];
          uint256 originalYesPrice = marketInfo[address(this)].initialPrice[1];
+         
+         uint256 totalBets = totalBetsOnNo + totalBetsOnYes;
 
-        if(NoUsers != 0){
+        if(totalBetsOnNo != 0){
             
-            originalNoPrice = ((NoUsers * 100)/(yesUsers + NoUsers));
+            originalNoPrice = ((totalBetsOnNo * 100)/(totalBets));
             originalNoPrice *= 10000000000000000;
         }
-        if(yesUsers != 0){
+        if(totalBetsOnYes != 0){
            
-            originalYesPrice = ((yesUsers * 100)/(yesUsers + NoUsers));
+            originalYesPrice = ((totalBetsOnYes * 100)/(totalBets));
             originalYesPrice *= 10000000000000000;
         }
 
@@ -161,45 +135,44 @@ contract Market is Ownable {
 
 
 
-    function sellShare(uint256 _noOfShares,uint256 _shareOf, uint256 _onPrice) external {
+    function sellShare(uint256 _amount, uint256 _price, uint256 _sellOf) external {
         
-        require(userInfo[msg.sender].bet, "didnt bet!");
-        require(_onPrice > 0, "amount must be greater than 0");
-        require(_noOfShares <= userInfo[msg.sender].noOfShares, "not enough shares.");
-        require(_shareOf == userInfo[msg.sender].betOn, "wrong bet.");
-        require(marketInfo[address(this)].marketOpen, "Market is not open");
-        // require(block.timestamp < marketInfo[address(this)].endTime, "Market has ended");
+        require(userInfo[msg.sender].bet, "wrong user.");
+        require(_price > 0, "price must be greater than 0");
+        require(_amount > 0, "amount must be greater than 0");
+        require(block.timestamp < marketInfo[address(this)].endTime, "Market has ended");
         
+        userInfo[msg.sender].listNo++;
 
-        userInfo[msg.sender].setForSale = true;
-        userInfo[msg.sender].saleAmount +=  _noOfShares;
-        userInfo[msg.sender].onPrice = _onPrice;
+        sellInfo[msg.sender][userInfo[msg.sender].listNo].list = true;
+        sellInfo[msg.sender][userInfo[msg.sender].listNo].price = _price;
 
-
-        emit SellShare(msg.sender, _noOfShares, _noOfShares, _onPrice);
+        if(_sellOf == 0){
+            sellInfo[msg.sender][userInfo[msg.sender].listNo].onNO = true;
+        } else {
+            sellInfo[msg.sender][userInfo[msg.sender].listNo].onYes = true;
+        }
+        
+    
+        emit SellShare(msg.sender, userInfo[msg.sender].listNo - 1, _price);
     }
 
-    function buyShare(uint256 _noOfShares,uint256 _shareOf, uint256 _onPrice, address _owner) external {
+    function buyShare(uint256 _listNo, address _owner) external {
         
-        require(userInfo[msg.sender].bet, "didnt bet!");
-        require(_noOfShares > 0 && _noOfShares <= userInfo[msg.sender].saleAmount,
-            "amount must be greater than 0");
-        require(_shareOf == userInfo[msg.sender].betOn, "wrong bet.");
-        require(marketInfo[address(this)].marketOpen, "Market is not open");
-        require(_onPrice == userInfo[msg.sender].onPrice * _noOfShares, "wrong price!");
-        require(_owner == userInfo[address(this)][_owner].owner,"You are not owner");
+        require(sellInfo[_owner][_listNo].list, "Not listeed!");
 
-        userInfo[msg.sender].buyed = true;
-        userInfo[msg.sender].betOn = _shareOf;
-        userInfo[msg.sender].buyAmount += _onPrice;
 
-        userInfo[address(this)][_owner].saleAmount -=  _noOfShares;
-        userInfo[address(this)][_owner].noOfShares -=  _noOfShares;
+        // userInfo[msg.sender].buyed = true;
+        // userInfo[msg.sender].betOn = _shareOf;
+        // userInfo[msg.sender].buyAmount += _onPrice;
 
-        bool success = usdcToken.transferFrom(msg.sender, _owner, _onPrice);
-        require(success, "Transfer failed");
+        // userInfo[address(this)][_owner].saleAmount -=  _noOfShares;
+        // userInfo[address(this)][_owner].noOfShares -=  _noOfShares;
 
-        emit BuyShare(msg.sender,_owner, _noOfShares, _shareOf, _onPrice);
+        // bool success = usdcToken.transferFrom(msg.sender, _owner, _onPrice);
+        // require(success, "Transfer failed");
+
+        // emit BuyShare(msg.sender,_owner, _noOfShares, _shareOf, _onPrice);
     }
 
     function resolveMarket(uint256 winningIndex) external   {
@@ -222,22 +195,12 @@ contract Market is Ownable {
     }
 
     function calculateShares(uint256 _amount, uint256 _betOn ) public view returns (uint256) {
-        
-        uint256 result;
-       
-        if(_betOn == 0){
-             result=  divide( _amount,  marketInfo[address(this)].initialPrice[_betOn]);
-        }else{
-             result =  divide( _amount,  marketInfo[address(this)].initialPrice[_betOn]);
-        }
-        return (result);
-    }
 
-    function divide(uint256 numerator, uint256 denominator) private pure returns (uint256) {
+        uint256 price =  marketInfo[address(this)].initialPrice[_betOn];
         
-        require(denominator != 0, "Denominator cannot be zero");
-        uint256 result = (numerator * 100) / denominator;
-
+        require(price != 0, "_price cannot be zero");
+        uint256 result = (_amount * 100) / price;
+        
         return result;
     }
 
