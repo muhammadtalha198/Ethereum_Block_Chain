@@ -36,7 +36,7 @@ contract Market is Ownable {
         address owner;
         uint256 price;
         uint256 amount;
-        mapping(uint256 => bool) sellOn;
+        uint256 listOn;
     }
 
     uint256 public totalUsers;
@@ -144,8 +144,9 @@ contract Market is Ownable {
 
         sellInfo[msg.sender][userInfo[msg.sender].listNo].list = true;
         sellInfo[msg.sender][userInfo[msg.sender].listNo].price = _price; 
+        sellInfo[msg.sender][userInfo[msg.sender].listNo].amount = _amount; 
         sellInfo[msg.sender][userInfo[msg.sender].listNo].owner = msg.sender; 
-        sellInfo[msg.sender][userInfo[msg.sender].listNo].sellOn[_sellOf] = true;
+        sellInfo[msg.sender][userInfo[msg.sender].listNo].listOn = _sellOf;
         
     
         emit SellShare(msg.sender, userInfo[msg.sender].listNo, _price);
@@ -158,17 +159,26 @@ contract Market is Ownable {
         require(sellInfo[_owner][_listNo].owner == _owner, "wrong Owner.");
         require(block.timestamp < marketInfo[address(this)].endTime, "Market has ended");
 
+        sellInfo[msg.sender][_listNo].sold = true;
+        sellInfo[msg.sender][_listNo].owner = msg.sender;
+        
+        if(sellInfo[msg.sender][_listNo].listOn == 0){
 
+            userInfo[msg.sender].noBetAmount += sellInfo[msg.sender][_listNo].amount;
+            userInfo[_owner].noBetAmount -= sellInfo[msg.sender][_listNo].amount;
+        }else{
 
-        // userInfo[msg.sender].buyed = true;
-        // userInfo[msg.sender].betOn = _shareOf;
-        // userInfo[msg.sender].buyAmount += _onPrice;
+            userInfo[msg.sender].yesBetAmount += sellInfo[msg.sender][_listNo].amount;
+            userInfo[_owner].yesBetAmount -= sellInfo[msg.sender][_listNo].amount;
+        }
+        
 
-        // userInfo[address(this)][_owner].saleAmount -=  _noOfShares;
-        // userInfo[address(this)][_owner].noOfShares -=  _noOfShares;
-
-        // bool success = usdcToken.transferFrom(msg.sender, _owner, _onPrice);
-        // require(success, "Transfer failed");
+        bool success = usdcToken.transferFrom(
+            msg.sender,
+            _owner,
+            sellInfo[msg.sender][_listNo].price
+        );
+        require(success, "Transfer failed");
 
         // emit BuyShare(msg.sender,_owner, _noOfShares, _shareOf, _onPrice);
     }
